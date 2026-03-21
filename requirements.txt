@@ -1,0 +1,6 @@
+flask
+instagrapi
+anthropic
+requests
+apscheduler
+Pillow
