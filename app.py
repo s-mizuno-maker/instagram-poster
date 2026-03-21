@@ -29,21 +29,28 @@ def save_posted_id(product_id):
         json.dump(ids, f)
 
 def get_products():
-    response = requests.get(SHOPIFY_URL)
-    data = response.json()
     posted_ids = get_posted_ids()
     products = []
-    for p in data.get("products", []):
-        products.append({
-            "id": str(p["id"]),
-            "title": p["title"],
-            "body_html": p.get("body_html", ""),
-            "vendor": p.get("vendor", ""),
-            "product_type": p.get("product_type", ""),
-            "tags": p.get("tags", ""),
-            "images": [img["src"] for img in p.get("images", [])],
-            "posted": str(p["id"]) in posted_ids
-        })
+    page = 1
+    while True:
+        url = f"https://monodoraku.com/products.json?limit=250&page={page}"
+        response = requests.get(url)
+        data = response.json()
+        items = data.get("products", [])
+        if not items:
+            break
+        for p in items:
+            products.append({
+                "id": str(p["id"]),
+                "title": p["title"],
+                "body_html": p.get("body_html", ""),
+                "vendor": p.get("vendor", ""),
+                "product_type": p.get("product_type", ""),
+                "tags": p.get("tags", ""),
+                "images": [img["src"] for img in p.get("images", [])],
+                "posted": str(p["id"]) in posted_ids
+            })
+        page += 1
     return products
 
 def generate_caption(product):
