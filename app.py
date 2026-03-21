@@ -109,7 +109,12 @@ def generate_caption(product):
 
 def post_to_instagram(image_urls, caption):
     cl = Client()
-    cl.login(INSTAGRAM_USERNAME, INSTAGRAM_PASSWORD)
+    session = os.environ.get("INSTAGRAM_SESSION")
+    if session:
+        cl.set_settings(json.loads(session))
+        cl.login(INSTAGRAM_USERNAME, INSTAGRAM_PASSWORD)
+    else:
+        cl.login(INSTAGRAM_USERNAME, INSTAGRAM_PASSWORD)
     image_paths = []
     for url in image_urls:
         response = requests.get(url)
