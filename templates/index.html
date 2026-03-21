@@ -9,20 +9,24 @@
 body { font-family: -apple-system, sans-serif; background: #f5f5f5; color: #333; }
 .header { background: white; padding: 1rem 1.5rem; border-bottom: 1px solid #eee; display: flex; align-items: center; justify-content: space-between; }
 .header h1 { font-size: 18px; font-weight: 500; }
-.container { max-width: 1000px; margin: 2rem auto; padding: 0 1rem; }
+.container { max-width: 1000px; margin: 2rem auto; padding: 0 1rem 100px; }
 .filters { display: flex; gap: 8px; margin-bottom: 1.5rem; flex-wrap: wrap; }
 .filters select, .filters input { padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; }
+.filters input { flex: 1; min-width: 200px; }
 .product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
 .product-card { background: white; border-radius: 10px; overflow: hidden; border: 2px solid transparent; cursor: pointer; transition: border-color 0.15s; }
+.product-card:hover { border-color: #ccc; }
 .product-card.selected { border-color: #0071e3; }
 .product-card.posted { opacity: 0.5; }
 .product-img { width: 100%; aspect-ratio: 1; object-fit: cover; background: #eee; }
 .product-info { padding: 10px 12px; }
 .product-title { font-size: 13px; font-weight: 500; margin-bottom: 4px; }
+.product-sku { font-size: 11px; color: #aaa; margin-bottom: 2px; }
 .product-meta { font-size: 12px; color: #888; }
 .badge { display: inline-block; font-size: 11px; padding: 2px 6px; border-radius: 4px; margin-left: 6px; }
 .badge-new { background: #e8f5e9; color: #2e7d32; }
 .badge-posted { background: #eee; color: #888; }
+.badge-scheduled { background: #e3f2fd; color: #1565c0; }
 .bottom-bar { position: fixed; bottom: 0; left: 0; right: 0; background: white; border-top: 1px solid #eee; padding: 1rem 1.5rem; display: flex; align-items: center; gap: 12px; }
 .selected-count { font-size: 14px; color: #666; }
 .btn { padding: 8px 20px; border-radius: 8px; font-size: 14px; cursor: pointer; border: none; }
@@ -31,11 +35,19 @@ body { font-family: -apple-system, sans-serif; background: #f5f5f5; color: #333;
 .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 100; align-items: center; justify-content: center; }
 .modal.active { display: flex; }
 .modal-content { background: white; border-radius: 12px; width: 90%; max-width: 600px; max-height: 90vh; overflow-y: auto; padding: 1.5rem; }
-.modal-title { font-size: 16px; font-weight: 500; margin-bottom: 1rem; }
+.modal-title { font-size: 16px; font-weight: 500; margin-bottom: 4px; }
+.modal-sku { font-size: 12px; color: #aaa; margin-bottom: 1rem; }
 .img-grid { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 1rem; }
 .img-thumb { width: 80px; height: 80px; object-fit: cover; border-radius: 6px; border: 2px solid transparent; cursor: pointer; }
 .img-thumb.selected { border-color: #0071e3; }
 .caption-box { width: 100%; height: 200px; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 13px; line-height: 1.7; resize: vertical; }
+.schedule-section { margin-top: 1rem; padding: 12px; background: #f5f5f5; border-radius: 8px; }
+.schedule-section label { font-size: 13px; color: #555; display: block; margin-bottom: 6px; }
+.schedule-toggle { display: flex; gap: 8px; margin-bottom: 8px; }
+.schedule-toggle button { padding: 6px 16px; border-radius: 6px; border: 1px solid #ddd; font-size: 13px; cursor: pointer; background: white; }
+.schedule-toggle button.active { background: #0071e3; color: white; border-color: #0071e3; }
+.datetime-input { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; display: none; }
+.datetime-input.show { display: block; }
 .modal-actions { display: flex; gap: 8px; margin-top: 1rem; }
 .loading { text-align: center; padding: 2rem; color: #888; }
 </style>
@@ -43,11 +55,11 @@ body { font-family: -apple-system, sans-serif; background: #f5f5f5; color: #333;
 <body>
 <div class="header">
   <h1>モノ道楽 Instagram投稿管理</h1>
-  <span id="header-count">商品を読み込み中...</span>
+  <span id="header-count">読み込み中...</span>
 </div>
 <div class="container">
   <div class="filters">
-    <input type="text" id="search" placeholder="商品名で検索..." oninput="filterProducts()">
+    <input type="text" id="search" placeholder="商品名・SKU・ブランドで検索..." oninput="filterProducts()">
     <select id="status-filter" onchange="filterProducts()">
       <option value="all">すべて</option>
       <option value="unposted">未投稿のみ</option>
@@ -66,8 +78,17 @@ body { font-family: -apple-system, sans-serif; background: #f5f5f5; color: #333;
 
 <div class="modal" id="modal">
   <div class="modal-content">
-    <div class="modal-title" id="modal-title">投稿設定</div>
+    <div class="modal-title" id="modal-title"></div>
+    <div class="modal-sku" id="modal-sku"></div>
     <div id="modal-body"></div>
+    <div class="schedule-section">
+      <label>投稿タイミング</label>
+      <div class="schedule-toggle">
+        <button class="active" id="btn-now" onclick="setScheduleMode('now')">今すぐ投稿</button>
+        <button id="btn-schedule" onclick="setScheduleMode('schedule')">時間を指定</button>
+      </div>
+      <input type="datetime-local" class="datetime-input" id="scheduled-time">
+    </div>
     <div class="modal-actions">
       <button class="btn btn-secondary" onclick="closeModal()">キャンセル</button>
       <button class="btn btn-secondary" onclick="generateCaption()">AIでキャプション生成</button>
@@ -80,64 +101,82 @@ body { font-family: -apple-system, sans-serif; background: #f5f5f5; color: #333;
 let allProducts = [];
 let selectedProduct = null;
 let selectedImages = [];
+let scheduleMode = 'now';
 
 async function loadProducts() {
   const res = await fetch('/api/products');
   allProducts = await res.json();
   document.getElementById('header-count').textContent = `全${allProducts.length}件`;
-  renderProducts(allProducts);
-}
-
-function renderProducts(products) {
-  const grid = document.getElementById('product-grid');
-  if (products.length === 0) { grid.innerHTML = '<div class="loading">商品が見つかりません</div>'; return; }
-  grid.innerHTML = products.map(p => `
-    <div class="product-card ${p.posted ? 'posted' : ''}" onclick="selectProduct('${p.id}')">
-      <img class="product-img" src="${p.images[0] || ''}" onerror="this.style.background='#eee'">
-      <div class="product-info">
-        <div class="product-title">${p.title}<span class="badge ${p.posted ? 'badge-posted' : 'badge-new'}">${p.posted ? '投稿済み' : '未投稿'}</span></div>
-        <div class="product-meta">${p.vendor}</div>
-      </div>
-    </div>
-  `).join('');
+  filterProducts();
 }
 
 function filterProducts() {
   const search = document.getElementById('search').value.toLowerCase();
   const status = document.getElementById('status-filter').value;
   const filtered = allProducts.filter(p => {
-    const matchSearch = p.title.toLowerCase().includes(search);
-    const matchStatus = status === 'all' || (status === 'unposted' && !p.posted) || (status === 'posted' && p.posted);
+    const matchSearch = !search ||
+      p.title.toLowerCase().includes(search) ||
+      (p.sku && p.sku.toLowerCase().includes(search)) ||
+      (p.vendor && p.vendor.toLowerCase().includes(search));
+    const matchStatus = status === 'all' ||
+      (status === 'unposted' && !p.posted) ||
+      (status === 'posted' && p.posted);
     return matchSearch && matchStatus;
   });
   renderProducts(filtered);
 }
 
+function renderProducts(products) {
+  const grid = document.getElementById('product-grid');
+  if (products.length === 0) {
+    grid.innerHTML = '<div class="loading">商品が見つかりません</div>';
+    return;
+  }
+  grid.innerHTML = products.map(p => `
+    <div class="product-card ${p.posted ? 'posted' : ''} ${selectedProduct && selectedProduct.id === p.id ? 'selected' : ''}" onclick="selectProduct('${p.id}')">
+      <img class="product-img" src="${p.images[0] || ''}" loading="lazy" onerror="this.style.background='#eee'">
+      <div class="product-info">
+        <div class="product-title">${p.title}<span class="badge ${p.posted ? 'badge-posted' : 'badge-new'}">${p.posted ? '投稿済み' : '未投稿'}</span></div>
+        ${p.sku ? `<div class="product-sku">SKU: ${p.sku}</div>` : ''}
+        <div class="product-meta">${p.vendor}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
 function selectProduct(id) {
   selectedProduct = allProducts.find(p => p.id === id);
-  document.querySelectorAll('.product-card').forEach(el => el.classList.remove('selected'));
-  event.currentTarget.classList.add('selected');
+  filterProducts();
   document.getElementById('selected-count').textContent = '1件選択中';
 }
 
 function clearSelection() {
   selectedProduct = null;
-  document.querySelectorAll('.product-card').forEach(el => el.classList.remove('selected'));
+  filterProducts();
   document.getElementById('selected-count').textContent = '0件選択中';
+}
+
+function setScheduleMode(mode) {
+  scheduleMode = mode;
+  document.getElementById('btn-now').classList.toggle('active', mode === 'now');
+  document.getElementById('btn-schedule').classList.toggle('active', mode === 'schedule');
+  document.getElementById('scheduled-time').classList.toggle('show', mode === 'schedule');
 }
 
 function openModal() {
   if (!selectedProduct) { alert('商品を選択してください'); return; }
   selectedImages = selectedProduct.images.slice(0, 3);
   document.getElementById('modal-title').textContent = selectedProduct.title;
+  document.getElementById('modal-sku').textContent = selectedProduct.sku ? `SKU: ${selectedProduct.sku}` : '';
   document.getElementById('modal-body').innerHTML = `
-    <p style="font-size:13px;color:#888;margin-bottom:8px;">投稿する画像を選択（クリックで選択・解除）</p>
+    <p style="font-size:13px;color:#888;margin-bottom:8px;">投稿する画像を選択</p>
     <div class="img-grid">${selectedProduct.images.map((url, i) => `
       <img class="img-thumb ${i < 3 ? 'selected' : ''}" src="${url}" onclick="toggleImage(this, '${url}')">
     `).join('')}</div>
     <p style="font-size:13px;color:#888;margin-bottom:8px;">キャプション</p>
     <textarea class="caption-box" id="caption-box" placeholder="「AIでキャプション生成」ボタンを押すか、直接入力してください"></textarea>
   `;
+  setScheduleMode('now');
   document.getElementById('modal').classList.add('active');
 }
 
@@ -171,20 +210,31 @@ async function postNow() {
   const caption = document.getElementById('caption-box').value;
   if (!caption) { alert('キャプションを入力してください'); return; }
   if (selectedImages.length === 0) { alert('画像を選択してください'); return; }
-  if (!confirm('投稿してもよいですか？')) return;
-  
+
+  let scheduledTime = null;
+  if (scheduleMode === 'schedule') {
+    scheduledTime = document.getElementById('scheduled-time').value;
+    if (!scheduledTime) { alert('投稿時間を選択してください'); return; }
+  }
+
+  const confirmMsg = scheduledTime
+    ? `${scheduledTime}に投稿予約しますか？`
+    : '今すぐ投稿しますか？';
+  if (!confirm(confirmMsg)) return;
+
   const res = await fetch('/api/post', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({
       product_id: selectedProduct.id,
       image_urls: selectedImages,
-      caption: caption
+      caption: caption,
+      scheduled_time: scheduledTime
     })
   });
   const data = await res.json();
   if (data.success) {
-    alert('投稿しました！');
+    alert(scheduledTime ? '投稿を予約しました！' : '投稿しました！');
     closeModal();
     loadProducts();
   } else {
