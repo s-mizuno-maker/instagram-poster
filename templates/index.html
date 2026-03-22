@@ -38,8 +38,10 @@ body { font-family: -apple-system, sans-serif; background: #f5f5f5; color: #333;
 .modal-title { font-size: 16px; font-weight: 500; margin-bottom: 4px; }
 .modal-sku { font-size: 12px; color: #aaa; margin-bottom: 1rem; }
 .img-grid { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 1rem; }
-.img-thumb { width: 80px; height: 80px; object-fit: cover; border-radius: 6px; border: 2px solid transparent; cursor: pointer; }
+.img-thumb { width: 80px; height: 80px; object-fit: cover; border-radius: 6px; border: 2px solid transparent; cursor: grab; position: relative; }
 .img-thumb.selected { border-color: #0071e3; }
+.img-thumb.dragging { opacity: 0.5; cursor: grabbing; }
+.img-order { position: absolute; top: 3px; left: 3px; background: #0071e3; color: white; font-size: 10px; width: 16px; height: 16px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 500; }
 .caption-box { width: 100%; height: 200px; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 13px; line-height: 1.7; resize: vertical; }
 .schedule-section { margin-top: 1rem; padding: 12px; background: #f5f5f5; border-radius: 8px; }
 .schedule-section label { font-size: 13px; color: #555; display: block; margin-bottom: 6px; }
@@ -169,9 +171,19 @@ function openModal() {
   document.getElementById('modal-title').textContent = selectedProduct.title;
   document.getElementById('modal-sku').textContent = selectedProduct.sku ? `SKU: ${selectedProduct.sku}` : '';
   document.getElementById('modal-body').innerHTML = `
-    <p style="font-size:13px;color:#888;margin-bottom:8px;">投稿する画像を選択</p>
-    <div class="img-grid">${selectedProduct.images.map((url, i) => `
-      <img class="img-thumb ${i < 3 ? 'selected' : ''}" src="${url}" onclick="toggleImage(this, '${url}')">
+    <p style="font-size:13px;color:#888;margin-bottom:8px;">投稿する画像を選択・ドラッグで順番変更</p>
+    <div class="img-grid" id="img-grid">${selectedProduct.images.map((url, i) => `
+      <div class="img-thumb ${i < 3 ? 'selected' : ''}"
+           draggable="true"
+           data-url="${url}"
+           ondragstart="dragStart(event)"
+           ondragover="dragOver(event)"
+           ondrop="dropImg(event)"
+           ondragend="dragEnd(event)"
+           onclick="toggleImage(this, '${url}')">
+        <img src="${url}" style="width:100%;height:100%;object-fit:cover;border-radius:4px;">
+        ${i < 3 ? `<div class="img-order">${i+1}</div>` : ''}
+      </div>
     `).join('')}</div>
     <p style="font-size:13px;color:#888;margin-bottom:8px;">キャプション</p>
     <textarea class="caption-box" id="caption-box" placeholder="「AIでキャプション生成」ボタンを押すか、直接入力してください"></textarea>
@@ -179,17 +191,65 @@ function openModal() {
   setScheduleMode('now');
   document.getElementById('modal').classList.add('active');
 }
-
+  
 function toggleImage(el, url) {
-  if (el.classList.contains('selected')) {
-    el.classList.remove('selected');
-    selectedImages = selectedImages.filter(u => u !== url);
-  } else {
-    el.classList.add('selected');
-    selectedImages.push(url);
+  el.classList.toggle('selected');
+  const order = el.querySelector('.img-order');
+  if (!el.classList.contains('selected') && order) {
+    order.remove();
+  } else if (el.classList.contains('selected') && !order) {
+    const div = document.createElement('div');
+    div.className = 'img-order';
+    el.appendChild(div);
+  }
+  updateSelectedImages();
+}
+
+function updateSelectedImages() {
+  const grid = document.getElementById('img-grid');
+  if (!grid) return;
+  selectedImages = [];
+  grid.querySelectorAll('.img-thumb.selected').forEach(el => {
+    selectedImages.push(el.dataset.url);
+  });
+  grid.querySelectorAll('.img-thumb.selected .img-order').forEach((el, i) => {
+    el.textContent = i + 1;
+  });
+}
+
+let dragSrc = null;
+
+function dragStart(e) {
+  dragSrc = e.currentTarget;
+  e.currentTarget.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+}
+
+function dragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+}
+
+function dropImg(e) {
+  e.preventDefault();
+  if (dragSrc !== e.currentTarget) {
+    const grid = document.getElementById('img-grid');
+    const items = [...grid.querySelectorAll('.img-thumb')];
+    const srcIdx = items.indexOf(dragSrc);
+    const tgtIdx = items.indexOf(e.currentTarget);
+    if (srcIdx < tgtIdx) {
+      grid.insertBefore(dragSrc, e.currentTarget.nextSibling);
+    } else {
+      grid.insertBefore(dragSrc, e.currentTarget);
+    }
+    updateSelectedImages();
   }
 }
 
+function dragEnd(e) {
+  e.currentTarget.classList.remove('dragging');
+}
+  
 function closeModal() {
   document.getElementById('modal').classList.remove('active');
 }
