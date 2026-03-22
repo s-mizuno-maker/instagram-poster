@@ -282,23 +282,34 @@ async function postNow() {
     : '今すぐ投稿しますか？';
   if (!confirm(confirmMsg)) return;
 
-  const res = await fetch('/api/post', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({
-      product_id: selectedProduct.id,
-      image_urls: selectedImages,
-      caption: caption,
-      scheduled_time: scheduledTime
-    })
-  });
-  const data = await res.json();
-  if (data.success) {
-    alert(scheduledTime ? '投稿を予約しました！' : '投稿しました！');
-    closeModal();
-    loadProducts();
-  } else {
-    alert('エラー: ' + data.error);
+  const postBtn = document.querySelector('.btn-primary');
+  postBtn.textContent = '投稿中...';
+  postBtn.disabled = true;
+
+  try {
+    const res = await fetch('/api/post', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        product_id: selectedProduct.id,
+        image_urls: selectedImages,
+        caption: caption,
+        scheduled_time: scheduledTime
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
+      alert(scheduledTime ? '投稿を予約しました！' : '投稿しました！');
+      closeModal();
+      loadProducts();
+    } else {
+      alert('エラー: ' + data.error);
+    }
+  } catch(e) {
+    alert('通信エラーが発生しました。投稿は成功している可能性があります。Instagramを確認してください。');
+  } finally {
+    postBtn.textContent = '投稿する';
+    postBtn.disabled = false;
   }
 }
 
