@@ -19,8 +19,7 @@ SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 # クライアント作成時も別名を使用
 supabase: SupabaseClient = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# --- Instagram/Anthropic設定 ---
-# (以下、変更なし)
+
 
 # --- Instagram/Anthropic設定 ---
 INSTAGRAM_USERNAME = os.environ.get("INSTAGRAM_USERNAME")
