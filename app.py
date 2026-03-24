@@ -138,10 +138,8 @@ def generate_caption(product):
 - 価格・在庫状況は書かない
 - 売れた後もずっと残る普遍的な文章
 - 最後に「プロフィールのリンクからご覧ください」を入れる
-- ハッシュタグは文章の後に改行して3〜5個のみ
-- 投稿内容と強く関連するものだけを厳選する
+- ハッシュタグは文章の後に改行して10〜15個
 - #monodoraku #モノ道楽 を必ず含める
-- 汎用的すぎるタグ（#instagood #reels など）は使わない
 
 【商品情報】
 商品名：{product['title']}
@@ -151,27 +149,15 @@ def generate_caption(product):
 
 キャプション本文とハッシュタグのみ出力してください。"""
 
-    try:
-        message = client.messages.create(
-            model="claude-sonnet-4-20250514", 
-            max_tokens=1000,
-            messages=[{"role": "user", "content": prompt}]
-        )
-        return message.content[0].text
-    except Exception as e:
-        print(f"AI Generation Error: {e}")
-        return f"エラーが発生しました: {e}"
+    message = client.messages.create(
+        model="claude-sonnet-4-20250514",
+        max_tokens=1000,
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return message.content[0].text
 
-# ★ここが重要：投稿関数
 def post_to_instagram(image_urls, caption):
-    cl = InstaClient() # ★ここをInstaClientに変更
-    session_data = os.environ.get("INSTAGRAM_SESSION")
-    if session_data:
-        try:
-            cl.set_settings(json.loads(session_data))
-        except:
-            pass
-    
+    cl = Client()
     cl.login(INSTAGRAM_USERNAME, INSTAGRAM_PASSWORD)
     
     image_paths = []
@@ -184,15 +170,16 @@ def post_to_instagram(image_urls, caption):
         img = img.convert("RGB")
         img.save(tmp.name)
         image_paths.append(tmp.name)
-        
+    
     if len(image_paths) == 1:
         cl.photo_upload(image_paths[0], caption)
     else:
         cl.album_upload(image_paths, caption)
-        
+    
     for path in image_paths:
-        if os.path.exists(path):
-            os.unlink(path)
+        os.unlink(path)
+
+
 
 # --- Flask Routes (変更なし) ---
 @app.route("/")
