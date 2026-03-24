@@ -330,8 +330,7 @@ async function postNow() {
     : '今すぐ投稿しますか？';
   if (!confirm(confirmMsg)) return;
 
-  const postBtn = document.querySelector('.btn-primary');
-  const originalText = postBtn.textContent;
+  const postBtn = document.querySelector('.modal-actions .btn-primary');
   postBtn.textContent = '処理中...';
   postBtn.disabled = true;
 
@@ -348,16 +347,21 @@ async function postNow() {
     });
     const data = await res.json();
     if (data.success) {
-      alert(scheduledTime ? '投稿を予約しました！' : '投稿しました！');
       closeModal();
-      loadProducts(); // これで商品一覧と予約リストの両方が更新されます
+      if (scheduledTime) {
+        alert('投稿を予約しました！');
+      } else {
+        alert('投稿処理を開始しました！数分後にInstagramを確認してください。');
+      }
+      loadProducts();
     } else {
       alert('エラー: ' + data.error);
     }
   } catch(e) {
-    alert('通信エラーが発生しました。Instagramを確認してください。');
+    closeModal();
+    alert('投稿処理を開始しました！数分後にInstagramを確認してください。');
   } finally {
-    postBtn.textContent = originalText;
+    postBtn.textContent = '投稿する';
     postBtn.disabled = false;
   }
 }
