@@ -12,28 +12,31 @@ from supabase import create_client, Client as SupabaseClient
 
 app = Flask(__name__)
 
-# --- Supabase接続設定 ---
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
 supabase: SupabaseClient = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# --- Instagram/Anthropic設定 ---
 INSTAGRAM_USERNAME = os.environ.get("INSTAGRAM_USERNAME", "")
 INSTAGRAM_PASSWORD = os.environ.get("INSTAGRAM_PASSWORD", "")
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 
-# --- データベース操作関数 ---
 def get_posted_ids():
-    """投稿済みIDをSupabaseから取得"""
     try:
-        response = supabase.table("scheduled_posts").select("product_id").eq("is_posted", True).execute()
+        response = supabase.table("posted_products").select("product_id").execute()
         return [str(item["product_id"]) for item in response.data]
     except Exception as e:
         print(f"Error fetching posted ids: {e}")
         return []
 
+def save_posted_id(product_id):
+    try:
+        supabase.table("posted_products").insert({
+            "product_id": str(product_id)
+        }).execute()
+    except Exception as e:
+        print(f"Error saving posted id: {e}")
+
 def get_scheduled_posts():
-    """未投稿の予約リストをSupabaseから取得"""
     try:
         response = supabase.table("scheduled_posts").select("*").eq("is_posted", False).execute()
         return response.data
@@ -42,36 +45,33 @@ def get_scheduled_posts():
         return []
 
 def save_scheduled_post(post):
-    """予約投稿をSupabaseに保存"""
-    supabase.table("scheduled_posts").insert({
-        "id": post["id"],
-        "product_id": post["product_id"],
-        "image_urls": post["image_urls"],
-        "caption": post["caption"],
-        "scheduled_time": post["scheduled_time"],
-        "is_posted": False
-    }).execute()
+    try:
+        supabase.table("scheduled_posts").insert({
+            "post_id": post["id"],
+            "product_id": post["product_id"],
+            "image_urls": json.dumps(post["image_urls"]),
+            "caption": post["caption"],
+            "scheduled_time": post["scheduled_time"],
+            "is_posted": False
+        }).execute()
+    except Exception as e:
+        print(f"Error saving scheduled post: {e}")
 
 def mark_as_posted(post_id, product_id):
-    """投稿完了後にフラグを更新"""
-    if post_id:
-        supabase.table("scheduled_posts").update({"is_posted": True}).eq("id", post_id).execute()
-    else:
-        supabase.table("scheduled_posts").insert({
-            "id": str(datetime.now().timestamp()),
-            "product_id": product_id,
-            "is_posted": True,
-            "caption": "Immediate Post",
-            "image_urls": []
-        }).execute()
+    try:
+        save_posted_id(product_id)
+        if post_id:
+            supabase.table("scheduled_posts").update({"is_posted": True}).eq("post_id", post_id).execute()
+    except Exception as e:
+        print(f"Error marking as posted: {e}")
 
-# --- スケジューラ設定（変更なし） ---
 scheduler = BackgroundScheduler()
 
 def execute_scheduled_post(post_data):
     try:
-        post_to_instagram(post_data["image_urls"], post_data["caption"])
-        mark_as_posted(post_data["id"], post_data["product_id"])
+        image_urls = json.loads(post_data["image_urls"]) if isinstance(post_data["image_urls"], str) else post_data["image_urls"]
+        post_to_instagram(image_urls, post_data["caption"])
+        mark_as_posted(post_data.get("post_id"), post_data["product_id"])
         print(f"Successfully posted: {post_data['product_id']}")
     except Exception as e:
         print(f"Scheduled post error: {e}")
@@ -80,20 +80,21 @@ def restore_scheduled_jobs():
     posts = get_scheduled_posts()
     now = datetime.now()
     for post in posts:
-        run_time = datetime.fromisoformat(post["scheduled_time"])
-        if run_time > now:
-            scheduler.add_job(
-                execute_scheduled_post,
-                'date',
-                run_date=run_time,
-                args=[post],
-                id=str(post["id"])
-            )
+        try:
+            run_time = datetime.fromisoformat(post["scheduled_time"])
+            if run_time > now:
+                scheduler.add_job(
+                    execute_scheduled_post,
+                    'date',
+                    run_date=run_time,
+                    args=[post],
+                    id=str(post["post_id"])
+                )
+        except Exception as e:
+            print(f"Error restoring job: {e}")
 
 scheduler.start()
 restore_scheduled_jobs()
-
-# --- 既存のロジック ---
 
 def get_products():
     posted_ids = get_posted_ids()
@@ -156,9 +157,14 @@ def generate_caption(product):
     return message.content[0].text
 
 def post_to_instagram(image_urls, caption):
-    cl = Client()
-    cl.login(INSTAGRAM_USERNAME, INSTAGRAM_PASSWORD)
-    
+    cl = InstaClient()
+    session = os.environ.get("INSTAGRAM_SESSION")
+    if session:
+        cl.set_settings(json.loads(session))
+        cl.login(INSTAGRAM_USERNAME, INSTAGRAM_PASSWORD)
+    else:
+        cl.login(INSTAGRAM_USERNAME, INSTAGRAM_PASSWORD)
+
     image_paths = []
     for url in image_urls:
         response = requests.get(url)
@@ -169,16 +175,14 @@ def post_to_instagram(image_urls, caption):
         img = img.convert("RGB")
         img.save(tmp.name)
         image_paths.append(tmp.name)
-    
+
     if len(image_paths) == 1:
         cl.photo_upload(image_paths[0], caption)
     else:
         cl.album_upload(image_paths, caption)
-    
+
     for path in image_paths:
         os.unlink(path)
-
-
 
 @app.route("/")
 def index():
@@ -231,6 +235,20 @@ def api_post():
 @app.route("/api/scheduled")
 def api_scheduled():
     return jsonify(get_scheduled_posts())
+
+@app.route("/api/cancel_scheduled", methods=["POST"])
+def api_cancel_scheduled():
+    data = request.json
+    post_id = data["post_id"]
+    try:
+        supabase.table("scheduled_posts").delete().eq("post_id", post_id).execute()
+        try:
+            scheduler.remove_job(post_id)
+        except:
+            pass
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
