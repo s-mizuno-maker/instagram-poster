@@ -8,21 +8,16 @@ from PIL import Image
 import tempfile
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
-# --- 追加: Supabase用ライブラリ ---
-from supabase import create_client, Client as SupabaseClient # ★名前を分ける
 
 app = Flask(__name__)
+scheduler = BackgroundScheduler()
+scheduler.start()
 
-# --- Supabase接続設定 ---
-SUPABASE_URL = os.environ.get("SUPABASE_URL")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
-# ★ここもSupabaseClientに変更
-supabase: SupabaseClient = create_client(SUPABASE_URL, SUPABASE_KEY)
-
-# --- Instagram/Anthropic設定 ---
 INSTAGRAM_USERNAME = os.environ.get("INSTAGRAM_USERNAME")
 INSTAGRAM_PASSWORD = os.environ.get("INSTAGRAM_PASSWORD")
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
+POSTED_FILE = "posted_ids.json"
+SCHEDULED_FILE = "scheduled_posts.json"
 
 # --- データベース操作関数（変更なし） ---
 
