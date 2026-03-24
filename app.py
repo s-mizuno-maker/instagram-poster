@@ -207,6 +207,7 @@ def api_post():
     scheduled_time = data.get("scheduled_time")
 
     if scheduled_time:
+        # スケジュール投稿（既存のまま）
         post_id = str(datetime.now().timestamp())
         post_data = {
             "id": post_id,
@@ -225,22 +226,15 @@ def api_post():
         )
         return jsonify({"success": True, "scheduled": True})
     else:
-        post_id = str(datetime.now().timestamp())
-        post_data = {
-            "id": post_id,
-            "product_id": product_id,
-            "image_urls": image_urls,
-            "caption": caption,
-            "scheduled_time": None
-        }
-        scheduler.add_job(
-            execute_scheduled_post,
-            'date',
-            run_date=datetime.now(),
-            args=[post_data],
-            id=post_id
-        )
-        return jsonify({"success": True, "scheduled": False})
+        # 即時投稿：直接実行
+        try:
+            post_to_instagram(image_urls, caption)
+            mark_as_posted(None, product_id)
+            return jsonify({"success": True, "scheduled": False})
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route("/api/scheduled")
 def api_scheduled():
