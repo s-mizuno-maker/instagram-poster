@@ -2,25 +2,27 @@ import os
 import json
 import requests
 from flask import Flask, render_template, jsonify, request
-from instagrapi import Client
+from instagrapi import Client as InstaClient
 import anthropic
 from PIL import Image
 import tempfile
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
+from supabase import create_client, Client as SupabaseClient
 
 app = Flask(__name__)
-scheduler = BackgroundScheduler()
-scheduler.start()
 
-INSTAGRAM_USERNAME = os.environ.get("INSTAGRAM_USERNAME")
-INSTAGRAM_PASSWORD = os.environ.get("INSTAGRAM_PASSWORD")
-ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
-POSTED_FILE = "posted_ids.json"
-SCHEDULED_FILE = "scheduled_posts.json"
+# --- Supabase接続設定 ---
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
+supabase: SupabaseClient = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# --- データベース操作関数（変更なし） ---
+# --- Instagram/Anthropic設定 ---
+INSTAGRAM_USERNAME = os.environ.get("INSTAGRAM_USERNAME", "")
+INSTAGRAM_PASSWORD = os.environ.get("INSTAGRAM_PASSWORD", "")
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 
+# --- データベース操作関数 ---
 def get_posted_ids():
     """投稿済みIDをSupabaseから取得"""
     try:
