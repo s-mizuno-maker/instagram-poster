@@ -80,24 +80,23 @@ body { font-family: -apple-system, sans-serif; background: #f5f5f5; color: #333;
       <option value="posted">投稿済み</option>
     </select>
   </div>
+<div class="scheduled-section" style="margin-bottom: 2rem; margin-top: 0;">
+    <h2>📅 待機中の予約投稿</h2>
+    <div id="scheduled-list">
+      <div style="font-size: 13px; color: #999; padding: 10px;">読み込み中...</div>
+    </div>
+  </div>
+
   <div class="product-grid" id="product-grid">
     <div class="loading">商品を読み込み中...</div>
   </div>
+</div>
 
 <div class="bottom-bar">
   <span class="selected-count" id="selected-count">0件選択中</span>
   <button class="btn btn-secondary" onclick="clearSelection()">選択解除</button>
   <button class="btn btn-primary" onclick="openModal()">投稿設定を開く</button>
 </div>
-
-  <div class="scheduled-section">
-    <h2>📅 待機中の予約投稿</h2>
-    <div id="scheduled-list">
-      <div style="font-size: 13px; color: #999; padding: 10px;">読み込み中...</div>
-    </div>
-  </div>
-</div>
-
 <div class="modal" id="modal">
   <div class="modal-content">
     <div class="modal-title" id="modal-title"></div>
