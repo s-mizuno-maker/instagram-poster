@@ -149,12 +149,18 @@ def generate_caption(product):
 カテゴリ：{product['product_type']}
 タグ：{product['tags']}"""
 
-    message = client.messages.create(
-        model="claude-3-5-sonnet-20240620", # モデル名は最新版に微調整
-        max_tokens=1000,
-        messages=[{"role": "user", "content": prompt}]
-    )
-    return message.content[0].text
+try:
+        message = client.messages.create(
+            # モデル名を元のコードで動いていたものに戻します
+            model="claude-sonnet-4-20250514", 
+            max_tokens=1000,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        # 戻り値の取得方法も元に戻します
+        return message.content[0].text
+    except Exception as e:
+        print(f"AI Generation Error: {e}")
+        return f"エラーが発生しました: {e}"
 
 def post_to_instagram(image_urls, caption):
     cl = Client()
