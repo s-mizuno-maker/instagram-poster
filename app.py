@@ -94,7 +94,10 @@ def restore_scheduled_jobs():
             print(f"Error restoring job: {e}")
 
 scheduler.start()
-restore_scheduled_jobs()
+try:
+    restore_scheduled_jobs()
+except Exception as e:
+    print(f"Error restoring scheduled jobs on startup: {e}")
 
 def get_products():
     posted_ids = get_posted_ids()
