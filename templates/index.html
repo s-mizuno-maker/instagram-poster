@@ -27,7 +27,19 @@ body { font-family: -apple-system, sans-serif; background: #f5f5f5; color: #333;
 .badge-new { background: #e8f5e9; color: #2e7d32; }
 .badge-posted { background: #eee; color: #888; }
 .badge-scheduled { background: #e3f2fd; color: #1565c0; }
-.bottom-bar { position: fixed; bottom: 0; left: 0; right: 0; background: white; border-top: 1px solid #eee; padding: 1rem 1.5rem; display: flex; align-items: center; gap: 12px; }
+
+/* 予約一覧用の追加スタイル */
+.scheduled-section { background: white; border-radius: 12px; padding: 1.5rem; margin-top: 2rem; border: 1px solid #eee; }
+.scheduled-section h2 { font-size: 16px; margin-bottom: 1rem; color: #333; }
+.scheduled-card { display: flex; align-items: center; gap: 12px; padding: 12px; border-bottom: 1px solid #f9f9f9; }
+.scheduled-card:last-child { border-bottom: none; }
+.sch-img { width: 60px; height: 60px; border-radius: 6px; object-fit: cover; border: 1px solid #eee; }
+.sch-info { flex: 1; min-width: 0; }
+.sch-time { font-size: 12px; font-weight: bold; color: #0071e3; margin-bottom: 2px; }
+.sch-title { font-size: 13px; color: #333; font-weight: 500; }
+.sch-caption { font-size: 11px; color: #888; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.bottom-bar { position: fixed; bottom: 0; left: 0; right: 0; background: white; border-top: 1px solid #eee; padding: 1rem 1.5rem; display: flex; align-items: center; gap: 12px; z-index: 50; }
 .selected-count { font-size: 14px; color: #666; }
 .btn { padding: 8px 20px; border-radius: 8px; font-size: 14px; cursor: pointer; border: none; }
 .btn-primary { background: #0071e3; color: white; margin-left: auto; }
@@ -71,7 +83,15 @@ body { font-family: -apple-system, sans-serif; background: #f5f5f5; color: #333;
   <div class="product-grid" id="product-grid">
     <div class="loading">商品を読み込み中...</div>
   </div>
+
+  <div class="scheduled-section">
+    <h2>📅 待機中の予約投稿</h2>
+    <div id="scheduled-list">
+      <div style="font-size: 13px; color: #999; padding: 10px;">読み込み中...</div>
+    </div>
+  </div>
 </div>
+
 <div class="bottom-bar">
   <span class="selected-count" id="selected-count">0件選択中</span>
   <button class="btn btn-secondary" onclick="clearSelection()">選択解除</button>
@@ -110,6 +130,34 @@ async function loadProducts() {
   allProducts = await res.json();
   document.getElementById('header-count').textContent = `全${allProducts.length}件`;
   filterProducts();
+  loadScheduledPosts(); // 予約リストも同時に更新
+}
+
+async function loadScheduledPosts() {
+  const list = document.getElementById('scheduled-list');
+  try {
+    const res = await fetch('/api/scheduled');
+    const posts = await res.json();
+
+    if (!posts || posts.length === 0) {
+      list.innerHTML = '<div style="font-size: 13px; color: #999; padding: 10px;">現在、予約されている投稿はありません</div>';
+      return;
+    }
+
+    list.innerHTML = posts.map(post => `
+      <div class="scheduled-card">
+        <img class="sch-img" src="${post.image_urls[0] || ''}" onerror="this.src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='">
+        <div class="sch-info">
+          <div class="sch-time">⏰ ${new Date(post.scheduled_time).toLocaleString('ja-JP')}</div>
+          <div class="sch-title">商品ID: ${post.product_id}</div>
+          <div class="sch-caption">${post.caption}</div>
+        </div>
+        <span class="badge badge-scheduled">予約中</span>
+      </div>
+    `).join('');
+  } catch (e) {
+    list.innerHTML = '<div style="color: red; font-size: 12px; padding: 10px;">予約データの取得に失敗しました</div>';
+  }
 }
 
 function filterProducts() {
@@ -191,7 +239,7 @@ function openModal() {
   setScheduleMode('now');
   document.getElementById('modal').classList.add('active');
 }
-  
+
 function toggleImage(el, url) {
   el.classList.toggle('selected');
   const order = el.querySelector('.img-order');
@@ -249,7 +297,7 @@ function dropImg(e) {
 function dragEnd(e) {
   e.currentTarget.classList.remove('dragging');
 }
-  
+
 function closeModal() {
   document.getElementById('modal').classList.remove('active');
 }
@@ -283,7 +331,8 @@ async function postNow() {
   if (!confirm(confirmMsg)) return;
 
   const postBtn = document.querySelector('.btn-primary');
-  postBtn.textContent = '投稿中...';
+  const originalText = postBtn.textContent;
+  postBtn.textContent = '処理中...';
   postBtn.disabled = true;
 
   try {
@@ -301,14 +350,14 @@ async function postNow() {
     if (data.success) {
       alert(scheduledTime ? '投稿を予約しました！' : '投稿しました！');
       closeModal();
-      loadProducts();
+      loadProducts(); // これで商品一覧と予約リストの両方が更新されます
     } else {
       alert('エラー: ' + data.error);
     }
   } catch(e) {
-    alert('通信エラーが発生しました。投稿は成功している可能性があります。Instagramを確認してください。');
+    alert('通信エラーが発生しました。Instagramを確認してください。');
   } finally {
-    postBtn.textContent = '投稿する';
+    postBtn.textContent = originalText;
     postBtn.disabled = false;
   }
 }
