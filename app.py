@@ -139,24 +139,31 @@ def generate_caption(product):
 以下の商品情報をもとに、Instagram投稿用のキャプションを日本語で作成してください。
 
 【ルール】
-- 商品紹介の形式で書く
+- 商品紹介の形式で書く（入荷情報ではない）
+- 起承転結がわかるシンプルな文章
+- 価格・在庫状況は書かない
+- 売れた後もずっと残る普遍的な文章
 - 最後に「プロフィールのリンクからご覧ください」を入れる
+- ハッシュタグは文章の後に改行して3〜5個のみ
+- 投稿内容と強く関連するものだけを厳選する
 - #monodoraku #モノ道楽 を必ず含める
+- 汎用的すぎるタグ（#instagood #reels など）は使わない
 
 【商品情報】
 商品名：{product['title']}
 ブランド：{product['vendor']}
 カテゴリ：{product['product_type']}
-タグ：{product['tags']}"""
+タグ：{product['tags']}
 
-try:
+キャプション本文とハッシュタグのみ出力してください。"""
+
+    # --- ここから下のインデント（スペース）を関数内に収まるように修正しました ---
+    try:
         message = client.messages.create(
-            # モデル名を元のコードで動いていたものに戻します
-            model="claude-sonnet-4-20250514", 
+            model="claude-sonnet-4-20250514",  # 元のモデル名
             max_tokens=1000,
             messages=[{"role": "user", "content": prompt}]
         )
-        # 戻り値の取得方法も元に戻します
         return message.content[0].text
     except Exception as e:
         print(f"AI Generation Error: {e}")
