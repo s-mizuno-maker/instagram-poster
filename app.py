@@ -2,7 +2,7 @@ import os
 import json
 import requests
 from flask import Flask, render_template, jsonify, request
-from instagrapi import Client as InstaClient # ★名前を分ける
+from instagrapi import Client
 import anthropic
 from PIL import Image
 import tempfile
@@ -159,7 +159,7 @@ def generate_caption(product):
     return message.content[0].text
 
 def post_to_instagram(image_urls, caption):
-    cl = InstaClient()
+    cl = Client()
     cl.login(INSTAGRAM_USERNAME, INSTAGRAM_PASSWORD)
     
     image_paths = []
@@ -183,7 +183,6 @@ def post_to_instagram(image_urls, caption):
 
 
 
-# --- Flask Routes (変更なし) ---
 @app.route("/")
 def index():
     return render_template("index.html")
