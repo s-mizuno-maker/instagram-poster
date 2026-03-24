@@ -2,21 +2,25 @@ import os
 import json
 import requests
 from flask import Flask, render_template, jsonify, request
-from instagrapi import Client
+from instagrapi import Client as InstaClient # 名前を分ける
 import anthropic
 from PIL import Image
 import tempfile
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
 # --- 追加: Supabase用ライブラリ ---
-from supabase import create_client, Client
+from supabase import create_client, Client as SupabaseClient # 名前を分ける
 
 app = Flask(__name__)
 
 # --- Supabase接続設定 ---
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+# クライアント作成時も別名を使用
+supabase: SupabaseClient = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+# --- Instagram/Anthropic設定 ---
+# (以下、変更なし)
 
 # --- Instagram/Anthropic設定 ---
 INSTAGRAM_USERNAME = os.environ.get("INSTAGRAM_USERNAME")
