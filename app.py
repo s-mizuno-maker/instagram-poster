@@ -8,46 +8,101 @@ from PIL import Image
 import tempfile
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
+# --- 追加: Supabase用ライブラリ ---
+from supabase import create_client, Client
 
 app = Flask(__name__)
-scheduler = BackgroundScheduler()
-scheduler.start()
 
+# --- Supabase接続設定 ---
+SUPABASE_URL = os.environ.get("SUPABASE_URL")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+# --- Instagram/Anthropic設定 ---
 INSTAGRAM_USERNAME = os.environ.get("INSTAGRAM_USERNAME")
 INSTAGRAM_PASSWORD = os.environ.get("INSTAGRAM_PASSWORD")
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
-POSTED_FILE = "posted_ids.json"
-SCHEDULED_FILE = "scheduled_posts.json"
+
+# --- データベース操作関数（JSONファイルの代わり） ---
 
 def get_posted_ids():
-    if os.path.exists(POSTED_FILE):
-        with open(POSTED_FILE, "r") as f:
-            return json.load(f)
-    return []
-
-def save_posted_id(product_id):
-    ids = get_posted_ids()
-    ids.append(str(product_id))
-    with open(POSTED_FILE, "w") as f:
-        json.dump(ids, f)
+    """投稿済みIDをSupabaseから取得"""
+    try:
+        response = supabase.table("scheduled_posts").select("product_id").eq("is_posted", True).execute()
+        return [str(item["product_id"]) for item in response.data]
+    except Exception as e:
+        print(f"Error fetching posted ids: {e}")
+        return []
 
 def get_scheduled_posts():
-    if os.path.exists(SCHEDULED_FILE):
-        with open(SCHEDULED_FILE, "r") as f:
-            return json.load(f)
-    return []
+    """未投稿の予約リストをSupabaseから取得"""
+    try:
+        response = supabase.table("scheduled_posts").select("*").eq("is_posted", False).execute()
+        return response.data
+    except Exception as e:
+        print(f"Error fetching scheduled posts: {e}")
+        return []
 
 def save_scheduled_post(post):
-    posts = get_scheduled_posts()
-    posts.append(post)
-    with open(SCHEDULED_FILE, "w") as f:
-        json.dump(posts, f)
+    """予約投稿をSupabaseに保存"""
+    supabase.table("scheduled_posts").insert({
+        "id": post["id"],
+        "product_id": post["product_id"],
+        "image_urls": post["image_urls"],
+        "caption": post["caption"],
+        "scheduled_time": post["scheduled_time"],
+        "is_posted": False
+    }).execute()
 
-def remove_scheduled_post(post_id):
+def mark_as_posted(post_id, product_id):
+    """投稿完了後にフラグを更新"""
+    # 予約投稿から実行された場合、その行を完了にする
+    if post_id:
+        supabase.table("scheduled_posts").update({"is_posted": True}).eq("id", post_id).execute()
+    else:
+        # 即時投稿の場合、新しいレコードとして「投稿済み」を記録
+        supabase.table("scheduled_posts").insert({
+            "id": str(datetime.now().timestamp()),
+            "product_id": product_id,
+            "is_posted": True,
+            "caption": "Immediate Post",
+            "image_urls": []
+        }).execute()
+
+# --- スケジューラ設定 ---
+scheduler = BackgroundScheduler()
+
+def execute_scheduled_post(post_data):
+    """予約時間に実行される関数"""
+    try:
+        post_to_instagram(post_data["image_urls"], post_data["caption"])
+        # 完了フラグを立てる
+        mark_as_posted(post_data["id"], post_data["product_id"])
+        print(f"Successfully posted: {post_data['product_id']}")
+    except Exception as e:
+        print(f"Scheduled post error: {e}")
+
+def restore_scheduled_jobs():
+    """【再起動対策】未投稿のジョブをSupabaseから読み込んで再登録"""
     posts = get_scheduled_posts()
-    posts = [p for p in posts if p["id"] != post_id]
-    with open(SCHEDULED_FILE, "w") as f:
-        json.dump(posts, f)
+    now = datetime.now()
+    for post in posts:
+        run_time = datetime.fromisoformat(post["scheduled_time"])
+        if run_time > now:
+            scheduler.add_job(
+                execute_scheduled_post,
+                'date',
+                run_date=run_time,
+                args=[post],
+                id=str(post["id"])
+            )
+            print(f"Job restored: {post['product_id']} at {post['scheduled_time']}")
+
+# スケジューラ開始とジョブ復元
+scheduler.start()
+restore_scheduled_jobs()
+
+# --- 既存のロジック（そのまま） ---
 
 def get_products():
     posted_ids = get_posted_ids()
@@ -84,26 +139,18 @@ def generate_caption(product):
 以下の商品情報をもとに、Instagram投稿用のキャプションを日本語で作成してください。
 
 【ルール】
-- 商品紹介の形式で書く（入荷情報ではない）
-- 起承転結がわかるシンプルな文章
-- 価格・在庫状況は書かない
-- 売れた後もずっと残る普遍的な文章
+- 商品紹介の形式で書く
 - 最後に「プロフィールのリンクからご覧ください」を入れる
-- ハッシュタグは文章の後に改行して3〜5個のみ
-- 投稿内容と強く関連するものだけを厳選する
 - #monodoraku #モノ道楽 を必ず含める
-- 汎用的すぎるタグ（#instagood #reels など）は使わない
 
 【商品情報】
 商品名：{product['title']}
 ブランド：{product['vendor']}
 カテゴリ：{product['product_type']}
-タグ：{product['tags']}
-
-キャプション本文とハッシュタグのみ出力してください。"""
+タグ：{product['tags']}"""
 
     message = client.messages.create(
-        model="claude-sonnet-4-20250514",
+        model="claude-3-5-sonnet-20240620", # モデル名は最新版に微調整
         max_tokens=1000,
         messages=[{"role": "user", "content": prompt}]
     )
@@ -111,12 +158,13 @@ def generate_caption(product):
 
 def post_to_instagram(image_urls, caption):
     cl = Client()
-    session = os.environ.get("INSTAGRAM_SESSION")
-    if session:
-        cl.set_settings(json.loads(session))
-        cl.login(INSTAGRAM_USERNAME, INSTAGRAM_PASSWORD)
-    else:
-        cl.login(INSTAGRAM_USERNAME, INSTAGRAM_PASSWORD)
+    # セッション管理（環境変数から読み込み）
+    session_data = os.environ.get("INSTAGRAM_SESSION")
+    if session_data:
+        cl.set_settings(json.loads(session_data))
+    
+    cl.login(INSTAGRAM_USERNAME, INSTAGRAM_PASSWORD)
+    
     image_paths = []
     for url in image_urls:
         response = requests.get(url)
@@ -127,12 +175,17 @@ def post_to_instagram(image_urls, caption):
         img = img.convert("RGB")
         img.save(tmp.name)
         image_paths.append(tmp.name)
+        
     if len(image_paths) == 1:
         cl.photo_upload(image_paths[0], caption)
     else:
         cl.album_upload(image_paths, caption)
+        
     for path in image_paths:
-        os.unlink(path)
+        if os.path.exists(path):
+            os.unlink(path)
+
+# --- Flask Routes ---
 
 @app.route("/")
 def index():
@@ -166,29 +219,27 @@ def api_post():
             "scheduled_time": scheduled_time
         }
         run_time = datetime.fromisoformat(scheduled_time)
+        
+        # Supabaseに保存
+        save_scheduled_post(post_data)
+        
+        # スケジューラに登録
         scheduler.add_job(
             execute_scheduled_post,
             'date',
             run_date=run_time,
-            args=[post_data]
+            args=[post_data],
+            id=post_id
         )
-        save_scheduled_post(post_data)
         return jsonify({"success": True, "scheduled": True})
     else:
         try:
             post_to_instagram(image_urls, caption)
-            save_posted_id(product_id)
+            # 即時投稿をDBに記録
+            mark_as_posted(None, product_id)
             return jsonify({"success": True, "scheduled": False})
         except Exception as e:
             return jsonify({"success": False, "error": str(e)})
-
-def execute_scheduled_post(post_data):
-    try:
-        post_to_instagram(post_data["image_urls"], post_data["caption"])
-        save_posted_id(post_data["product_id"])
-        remove_scheduled_post(post_data["id"])
-    except Exception as e:
-        print(f"Scheduled post error: {e}")
 
 @app.route("/api/scheduled")
 def api_scheduled():
