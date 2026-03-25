@@ -79,10 +79,10 @@ def execute_scheduled_post(post_data):
 
 def restore_scheduled_jobs():
     posts = get_scheduled_posts()
-    now = datetime.now(JST)
+    now = datetime.now()
     for post in posts:
         try:
-            run_time = datetime.fromisoformat(post["scheduled_time"]).replace(tzinfo=JST)
+            run_time = datetime.fromisoformat(post["scheduled_time"])
             if run_time > now:
                 scheduler.add_job(
                     execute_scheduled_post,
@@ -224,7 +224,7 @@ def api_post():
         scheduler.add_job(
             execute_scheduled_post,
             'date',
-            run_date=datetime.fromisoformat(scheduled_time).replace(tzinfo=JST),
+            run_date=datetime.fromisoformat(scheduled_time),
             args=[post_data],
             id=post_id
         )
