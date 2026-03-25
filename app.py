@@ -68,6 +68,34 @@ def mark_as_posted(post_id, product_id):
 
 scheduler = BackgroundScheduler()
 
+def post_to_instagram(image_urls, caption):
+    cl = InstaClient()
+    session = os.environ.get("INSTAGRAM_SESSION")
+    if session:
+        cl.set_settings(json.loads(session))
+        cl.login(INSTAGRAM_USERNAME, INSTAGRAM_PASSWORD)
+    else:
+        cl.login(INSTAGRAM_USERNAME, INSTAGRAM_PASSWORD)
+
+    image_paths = []
+    for url in image_urls:
+        response = requests.get(url)
+        tmp = tempfile.NamedTemporaryFile(suffix=".jpg", delete=False)
+        tmp.write(response.content)
+        tmp.close()
+        img = Image.open(tmp.name)
+        img = img.convert("RGB")
+        img.save(tmp.name)
+        image_paths.append(tmp.name)
+
+    if len(image_paths) == 1:
+        cl.photo_upload(image_paths[0], caption)
+    else:
+        cl.album_upload(image_paths, caption)
+
+    for path in image_paths:
+        os.unlink(path)
+
 def execute_scheduled_post(post_data):
     try:
         image_urls = json.loads(post_data["image_urls"]) if isinstance(post_data["image_urls"], str) else post_data["image_urls"]
@@ -162,34 +190,6 @@ def generate_caption(product):
         messages=[{"role": "user", "content": prompt}]
     )
     return message.content[0].text
-
-def post_to_instagram(image_urls, caption):
-    cl = InstaClient()
-    session = os.environ.get("INSTAGRAM_SESSION")
-    if session:
-        cl.set_settings(json.loads(session))
-        cl.login(INSTAGRAM_USERNAME, INSTAGRAM_PASSWORD)
-    else:
-        cl.login(INSTAGRAM_USERNAME, INSTAGRAM_PASSWORD)
-
-    image_paths = []
-    for url in image_urls:
-        response = requests.get(url)
-        tmp = tempfile.NamedTemporaryFile(suffix=".jpg", delete=False)
-        tmp.write(response.content)
-        tmp.close()
-        img = Image.open(tmp.name)
-        img = img.convert("RGB")
-        img.save(tmp.name)
-        image_paths.append(tmp.name)
-
-    if len(image_paths) == 1:
-        cl.photo_upload(image_paths[0], caption)
-    else:
-        cl.album_upload(image_paths, caption)
-
-    for path in image_paths:
-        os.unlink(path)
 
 @app.route("/")
 def index():
