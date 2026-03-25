@@ -1,14 +1,14 @@
 import os
 import json
 import requests
+import threading
+import time
 from flask import Flask, render_template, jsonify, request
 from instagrapi import Client as InstaClient
 import anthropic
 from PIL import Image
 import tempfile
-from apscheduler.schedulers.background import BackgroundScheduler
-from datetime import datetime, timezone, timedelta
-JST = timezone(timedelta(hours=9))
+from datetime import datetime
 from supabase import create_client, Client as SupabaseClient
 
 app = Flask(__name__)
@@ -31,9 +31,7 @@ def get_posted_ids():
 
 def save_posted_id(product_id):
     try:
-        supabase.table("posted_products").insert({
-            "product_id": str(product_id)
-        }).execute()
+        supabase.table("posted_products").insert({"product_id": str(product_id)}).execute()
     except Exception as e:
         print(f"Error saving posted id: {e}")
 
@@ -66,8 +64,6 @@ def mark_as_posted(post_id, product_id):
     except Exception as e:
         print(f"Error marking as posted: {e}")
 
-scheduler = BackgroundScheduler()
-
 def post_to_instagram(image_urls, caption):
     cl = InstaClient()
     session = os.environ.get("INSTAGRAM_SESSION")
@@ -76,23 +72,19 @@ def post_to_instagram(image_urls, caption):
         cl.login(INSTAGRAM_USERNAME, INSTAGRAM_PASSWORD)
     else:
         cl.login(INSTAGRAM_USERNAME, INSTAGRAM_PASSWORD)
-
     image_paths = []
     for url in image_urls:
         response = requests.get(url)
         tmp = tempfile.NamedTemporaryFile(suffix=".jpg", delete=False)
         tmp.write(response.content)
         tmp.close()
-        img = Image.open(tmp.name)
-        img = img.convert("RGB")
+        img = Image.open(tmp.name).convert("RGB")
         img.save(tmp.name)
         image_paths.append(tmp.name)
-
     if len(image_paths) == 1:
         cl.photo_upload(image_paths[0], caption)
     else:
         cl.album_upload(image_paths, caption)
-
     for path in image_paths:
         os.unlink(path)
 
@@ -105,31 +97,21 @@ def execute_scheduled_post(post_data):
     except Exception as e:
         print(f"Scheduled post error: {e}")
 
-def restore_scheduled_jobs():
-    posts = get_scheduled_posts()
-    now = datetime.now()
-    for post in posts:
+def check_and_execute_scheduled_posts():
+    while True:
         try:
-            run_time = datetime.fromisoformat(post["scheduled_time"])
-            if run_time <= now:
-                # 過去の予約は即時実行
-                execute_scheduled_post(post)
-            else:
-                scheduler.add_job(
-                    execute_scheduled_post,
-                    'date',
-                    run_date=run_time,
-                    args=[post],
-                    id=str(post["post_id"])
-                )
+            posts = get_scheduled_posts()
+            now = datetime.now()
+            for post in posts:
+                run_time = datetime.fromisoformat(post["scheduled_time"])
+                if run_time <= now:
+                    print(f"実行: {post['post_id']}")
+                    execute_scheduled_post(post)
         except Exception as e:
-            print(f"Error restoring job: {e}")
+            print(f"Polling error: {e}")
+        time.sleep(60)
 
-scheduler.start()
-try:
-    restore_scheduled_jobs()
-except Exception as e:
-    print(f"Error restoring scheduled jobs on startup: {e}")
+threading.Thread(target=check_and_execute_scheduled_posts, daemon=True).start()
 
 def get_products():
     posted_ids = get_posted_ids()
@@ -212,9 +194,7 @@ def api_post():
     image_urls = data["image_urls"]
     caption = data["caption"]
     scheduled_time = data.get("scheduled_time")
-
     if scheduled_time:
-        # スケジュール投稿（既存のまま）
         post_id = str(datetime.now().timestamp())
         post_data = {
             "id": post_id,
@@ -224,16 +204,8 @@ def api_post():
             "scheduled_time": scheduled_time
         }
         save_scheduled_post(post_data)
-        scheduler.add_job(
-            execute_scheduled_post,
-            'date',
-            run_date=datetime.fromisoformat(scheduled_time),
-            args=[post_data],
-            id=post_id
-        )
         return jsonify({"success": True, "scheduled": True})
     else:
-        # 即時投稿：直接実行
         try:
             post_to_instagram(image_urls, caption)
             mark_as_posted(None, product_id)
@@ -253,10 +225,6 @@ def api_cancel_scheduled():
     post_id = data["post_id"]
     try:
         supabase.table("scheduled_posts").delete().eq("post_id", post_id).execute()
-        try:
-            scheduler.remove_job(post_id)
-        except:
-            pass
         return jsonify({"success": True})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)})
