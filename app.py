@@ -7,7 +7,8 @@ import anthropic
 from PIL import Image
 import tempfile
 from apscheduler.schedulers.background import BackgroundScheduler
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
+JST = timezone(timedelta(hours=9))
 from supabase import create_client, Client as SupabaseClient
 
 app = Flask(__name__)
@@ -78,10 +79,10 @@ def execute_scheduled_post(post_data):
 
 def restore_scheduled_jobs():
     posts = get_scheduled_posts()
-    now = datetime.now()
+    now = datetime.now(JST)
     for post in posts:
         try:
-            run_time = datetime.fromisoformat(post["scheduled_time"])
+            run_time = datetime.fromisoformat(post["scheduled_time"]).replace(tzinfo=JST)
             if run_time > now:
                 scheduler.add_job(
                     execute_scheduled_post,
@@ -223,7 +224,7 @@ def api_post():
         scheduler.add_job(
             execute_scheduled_post,
             'date',
-            run_date=datetime.fromisoformat(scheduled_time),
+            run_date=datetime.fromisoformat(scheduled_time).replace(tzinfo=JST),
             args=[post_data],
             id=post_id
         )
