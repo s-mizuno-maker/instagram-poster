@@ -341,7 +341,7 @@ async function postNow() {
         product_id: selectedProduct.id,
         image_urls: selectedImages,
         caption: caption,
-        scheduled_time: scheduledTime
+        scheduled_time: scheduledTime ? new Date(scheduledTime).toISOString().slice(0, 16) : null
       })
     });
     const data = await res.json();
