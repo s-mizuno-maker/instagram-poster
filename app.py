@@ -83,7 +83,10 @@ def restore_scheduled_jobs():
     for post in posts:
         try:
             run_time = datetime.fromisoformat(post["scheduled_time"])
-            if run_time > now:
+            if run_time <= now:
+                # 過去の予約は即時実行
+                execute_scheduled_post(post)
+            else:
                 scheduler.add_job(
                     execute_scheduled_post,
                     'date',
