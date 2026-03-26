@@ -115,6 +115,20 @@ threading.Thread(target=check_and_execute_scheduled_posts, daemon=True).start()
 
 def get_products():
     posted_ids = get_posted_ids()
+
+    en_titles = {}
+    page = 1
+    while True:
+        url = f"https://monodoraku.com/en/products.json?limit=250&page={page}"
+        response = requests.get(url)
+        data = response.json()
+        items = data.get("products", [])
+        if not items:
+            break
+        for p in items:
+            en_titles[str(p["id"])] = p["title"]
+        page += 1
+
     products = []
     page = 1
     while True:
@@ -131,6 +145,7 @@ def get_products():
             products.append({
                 "id": str(p["id"]),
                 "title": p["title"],
+                "title_en": en_titles.get(str(p["id"]), p["title"]),
                 "sku": sku,
                 "body_html": p.get("body_html", ""),
                 "vendor": p.get("vendor", ""),
@@ -153,12 +168,12 @@ def generate_caption(product):
 ・落ち着きがあり静かな時間を過ごすのを好む
 
 【必須条件】
-1.冒頭は""商品名""を英語表記で記載する。<shopify>上の""商品名""参照。（例：PACIFIC FURNITURE SERVICE OPERATION B TABLE - L Solid Oak ×Steel）
-2.次に感性的・詩的なキャッチコピーで始める（例：『静かな朝に寄り添う一杯を楽しむ』）。  
-3.商品の特徴や魅力を自然にストーリーへ溶け込ませる。  
-4.上品かつ親しみがある文章。
-5.使用シーンやコーディネートを想起させる短い描写を入れる。  
-6.<shopify>上の""商品説明文""から情報を抽出し、参考にして文章生成する。
+1. 冒頭1行目に「商品名（英語）」をそのまま記載する。翻訳や変換は一切しないこと。
+2. 次の行から感性的・詩的なキャッチコピーで始める。（例：『静かな朝に寄り添う一杯を楽しむ』）
+3. 商品の特徴や魅力を自然にストーリーへ溶け込ませる。
+4. 上品かつ親しみがある文章。
+5. 使用シーンやコーディネートを想起させる短い描写を入れる。
+6. 後述する【商品情報】内の「商品説明文」から情報を抽出し、参考にして文章生成する。
 
 【ハッシュタグルール】
 - 文章の後に改行して3〜5個のみ
@@ -167,10 +182,12 @@ def generate_caption(product):
 - 汎用的すぎるタグ（#instagood #reels など）は使わない
 
 【商品情報】
-商品名：{product['title']}
+商品名（日本語）：{product['title']}
+商品名（英語）：{product.get('title_en', product['title'])}
 ブランド：{product['vendor']}
 カテゴリ：{product['product_type']}
 タグ：{product['tags']}
+商品説明文：{product['body_html']}
 
 キャプション本文とハッシュタグのみ出力してください。"""
 
