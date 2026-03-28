@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SEOメタ一括更新 | モノ道楽</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "Helvetica Neue", Arial, "Hiragino Sans", sans-serif;
+      background: #f5f4f0;
+      color: #2c2c2c;
+      min-height: 100vh;
+      padding: 2rem 1rem;
+    }
+
+    .container { max-width: 900px; margin: 0 auto; }
+
+    h1 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.3rem;
+    }
+    .subtitle { font-size: 0.85rem; color: #888; margin-bottom: 2rem; }
+
+    /* カード */
+    .card {
+      background: #fff;
+      border-radius: 10px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    }
+    .card h2 { font-size: 1rem; margin-bottom: 1rem; color: #444; }
+
+    /* フォーム */
+    .form-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      align-items: flex-end;
+      margin-bottom: 1rem;
+    }
+    .form-group { display: flex; flex-direction: column; gap: 0.3rem; }
+    label { font-size: 0.8rem; color: #666; }
+    input[type="number"] {
+      width: 120px;
+      padding: 0.45rem 0.6rem;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 0.9rem;
+    }
+    .toggle-label {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.9rem;
+      cursor: pointer;
+      padding-bottom: 0.2rem;
+    }
+    input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; }
+
+    /* ボタン */
+    .btn {
+      padding: 0.55rem 1.4rem;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-primary   { background: #2c2c2c; color: #fff; }
+    .btn-secondary { background: #e8e6e0; color: #2c2c2c; }
+    .btn:hover:not(:disabled) { opacity: 0.8; }
+
+    .btn-row { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+
+    /* ステータスバー */
+    #status-bar {
+      display: none;
+      padding: 0.75rem 1rem;
+      border-radius: 6px;
+      font-size: 0.88rem;
+      margin-bottom: 1rem;
+    }
+    #status-bar.running  { background: #fff8e1; color: #b07c00; border: 1px solid #ffe082; }
+    #status-bar.success  { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
+    #status-bar.error    { background: #fce4ec; color: #c62828; border: 1px solid #ef9a9a; }
+
+    /* プログレス */
+    .progress-wrap { background: #eee; border-radius: 100px; height: 6px; margin: 0.5rem 0 1rem; overflow: hidden; }
+    .progress-bar  { height: 100%; background: #2c2c2c; border-radius: 100px; transition: width 0.4s; width: 0%; }
+
+    /* サマリー */
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+      gap: 0.75rem;
+      margin-bottom: 1.2rem;
+    }
+    .summary-item {
+      background: #f5f4f0;
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      text-align: center;
+    }
+    .summary-item .num { font-size: 1.6rem; font-weight: 700; }
+    .summary-item .lbl { font-size: 0.75rem; color: #888; margin-top: 0.2rem; }
+    .num.green  { color: #2e7d32; }
+    .num.red    { color: #c62828; }
+    .num.orange { color: #e65100; }
+
+    /* テーブル */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    th { background: #f0ede8; padding: 0.55rem 0.75rem; text-align: left; font-weight: 600; white-space: nowrap; }
+    td { padding: 0.55rem 0.75rem; border-bottom: 1px solid #f0ede8; vertical-align: top; }
+    tr:last-child td { border-bottom: none; }
+    .badge {
+      display: inline-block;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .badge-ok      { background: #e8f5e9; color: #2e7d32; }
+    .badge-fail    { background: #fce4ec; color: #c62828; }
+    .badge-dry     { background: #e3f2fd; color: #1565c0; }
+    .badge-warn    { background: #fff8e1; color: #b07c00; }
+    .char-count    { font-size: 0.72rem; color: #aaa; }
+
+    #result-section { display: none; }
+
+    /* ナビ */
+    .nav { margin-bottom: 1.5rem; }
+    .nav a { font-size: 0.85rem; color: #888; text-decoration: none; }
+    .nav a:hover { color: #2c2c2c; }
+
+    /* スピナー */
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner {
+      display: inline-block;
+      width: 14px; height: 14px;
+      border: 2px solid currentColor;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 0.4rem;
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <div class="nav"><a href="/">← ダッシュボードに戻る</a></div>
+
+  <h1>🔍 SEOメタ一括更新</h1>
+  <p class="subtitle">Shopify コレクションページの title / meta description を Claude で自動生成・更新します</p>
+
+  <!-- 設定カード -->
+  <div class="card">
+    <h2>実行設定</h2>
+    <div class="form-row">
+      <div class="form-group">
+        <label>件数制限（空白 = 全件）</label>
+        <input type="number" id="inp-limit" min="1" max="100" placeholder="例: 5">
+      </div>
+      <div class="form-group">
+        <label>コレクション ID 指定（空白 = 全件）</label>
+        <input type="number" id="inp-id" placeholder="例: 123456789">
+      </div>
+      <div class="form-group">
+        <label>&nbsp;</label>
+        <label class="toggle-label">
+          <input type="checkbox" id="chk-dryrun" checked>
+          Dry run（生成のみ・Shopify未更新）
+        </label>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary"   id="btn-run">▶ 実行</button>
+      <button class="btn btn-secondary" id="btn-stop" disabled>⏹ 停止（次回ポーリングで反映）</button>
+    </div>
+  </div>
+
+  <!-- ステータス -->
+  <div id="status-bar"></div>
+  <div class="progress-wrap" id="progress-wrap" style="display:none">
+    <div class="progress-bar" id="progress-bar"></div>
+  </div>
+
+  <!-- 結果 -->
+  <div id="result-section">
+    <div class="card">
+      <h2>実行結果</h2>
+      <div class="summary-grid" id="summary-grid"></div>
+      <div class="table-wrap">
+        <table id="result-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>コレクション名</th>
+              <th>生成タイトル</th>
+              <th>生成ディスクリプション</th>
+              <th>状態</th>
+            </tr>
+          </thead>
+          <tbody id="result-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  const btnRun     = document.getElementById('btn-run');
+  const btnStop    = document.getElementById('btn-stop');
+  const statusBar  = document.getElementById('status-bar');
+  const progressW  = document.getElementById('progress-wrap');
+  const progressB  = document.getElementById('progress-bar');
+  const resultSec  = document.getElementById('result-section');
+  const summaryG   = document.getElementById('summary-grid');
+  const tbody      = document.getElementById('result-tbody');
+
+  let polling = null;
+
+  // ── 実行 ──────────────────────────────────────────────────
+  btnRun.addEventListener('click', async () => {
+    const dryRun  = document.getElementById('chk-dryrun').checked;
+    const limit   = document.getElementById('inp-limit').value || null;
+    const targetId = document.getElementById('inp-id').value || null;
+
+    btnRun.disabled  = true;
+    btnStop.disabled = false;
+    resultSec.style.display = 'none';
+    setStatus('running', '<span class="spinner"></span>実行中…');
+    progressW.style.display = 'block';
+    progressB.style.width   = '5%';
+
+    const body = { dry_run: dryRun };
+    if (limit)    body.limit     = parseInt(limit);
+    if (targetId) body.target_id = parseInt(targetId);
+
+    try {
+      const res = await fetch('/api/seo/run', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setStatus('error', '❌ ' + (data.error || '起動失敗'));
+        reset();
+        return;
+      }
+      startPolling();
+    } catch (e) {
+      setStatus('error', '❌ ネットワークエラー: ' + e.message);
+      reset();
+    }
+  });
+
+  // ── ポーリング ────────────────────────────────────────────
+  function startPolling() {
+    polling = setInterval(async () => {
+      try {
+        const res  = await fetch('/api/seo/status');
+        const data = await res.json();
+
+        if (data.running) {
+          // アニメーション的に進捗を演出
+          const cur = parseFloat(progressB.style.width) || 5;
+          progressB.style.width = Math.min(cur + 2, 90) + '%';
+          return;
+        }
+
+        clearInterval(polling);
+        progressB.style.width = '100%';
+        setTimeout(() => { progressW.style.display = 'none'; }, 600);
+
+        if (data.error) {
+          setStatus('error', '❌ エラー: ' + data.error);
+        } else if (data.result) {
+          renderResult(data.result);
+          const s = data.result.summary;
+          const msg = s.dry_run
+            ? `✅ Dry run 完了 — ${s.total}件生成、失敗 ${s.failures}件`
+            : `✅ 更新完了 — ${s.success}/${s.total}件成功、失敗 ${s.failures}件`;
+          setStatus('success', msg);
+        }
+        reset();
+      } catch (e) {
+        // ポーリングエラーは無視して継続
+      }
+    }, 3000);
+  }
+
+  // ── 結果描画 ──────────────────────────────────────────────
+  function renderResult(data) {
+    const s = data.summary;
+    summaryG.innerHTML = `
+      <div class="summary-item"><div class="num">${s.total}</div><div class="lbl">対象コレクション</div></div>
+      <div class="summary-item"><div class="num green">${s.success}</div><div class="lbl">成功</div></div>
+      <div class="summary-item"><div class="num red">${s.failures}</div><div class="lbl">失敗</div></div>
+      <div class="summary-item"><div class="num orange">${s.dry_run ? 'ON' : 'OFF'}</div><div class="lbl">Dry run</div></div>
+    `;
+
+    tbody.innerHTML = '';
+    (data.results || []).forEach((r, i) => {
+      const statusBadge = r.updated === true
+        ? '<span class="badge badge-ok">更新済</span>'
+        : r.updated === 'dry_run'
+          ? '<span class="badge badge-dry">生成のみ</span>'
+          : '<span class="badge badge-fail">失敗</span>';
+
+      const warnHtml = (r.warnings || []).length
+        ? r.warnings.map(w => `<span class="badge badge-warn">${w}</span>`).join(' ')
+        : '';
+
+      tbody.innerHTML += `
+        <tr>
+          <td>${i + 1}</td>
+          <td>${esc(r.name)}<br><span class="char-count">id: ${r.id}</span></td>
+          <td>
+            ${esc(r.seo_title)}
+            <br><span class="char-count">${(r.seo_title||'').length}文字</span>
+          </td>
+          <td>
+            ${esc(r.seo_desc)}
+            <br><span class="char-count">${(r.seo_desc||'').length}文字</span>
+            ${warnHtml ? '<br>' + warnHtml : ''}
+          </td>
+          <td>${statusBadge}</td>
+        </tr>`;
+    });
+
+    resultSec.style.display = 'block';
+    resultSec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // ── ユーティリティ ─────────────────────────────────────────
+  function setStatus(type, msg) {
+    statusBar.className  = type;
+    statusBar.innerHTML  = msg;
+    statusBar.style.display = 'block';
+  }
+
+  function reset() {
+    btnRun.disabled  = false;
+    btnStop.disabled = true;
+  }
+
+  function esc(s) {
+    if (!s) return '';
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  // ── 停止ボタン（ポーリング停止のみ、サーバー側は完走する）──
+  btnStop.addEventListener('click', () => {
+    if (polling) clearInterval(polling);
+    setStatus('error', '⚠️ ポーリングを停止しました。サーバー側処理は続行中の場合があります。');
+    progressW.style.display = 'none';
+    reset();
+  });
+</script>
+</body>
+</html>
