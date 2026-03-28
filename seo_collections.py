@@ -9,9 +9,6 @@ import time
 import requests
 from anthropic import Anthropic
 
-# ─────────────────────────────────────────────
-# 設定
-# ─────────────────────────────────────────────
 SHOPIFY_CLIENT_ID     = os.environ.get("SHOPIFY_CLIENT_ID", "")
 SHOPIFY_CLIENT_SECRET = os.environ.get("SHOPIFY_CLIENT_SECRET", "")
 SHOPIFY_SHOP          = os.environ.get("SHOPIFY_SHOP", "monodoraku")
@@ -34,24 +31,13 @@ SYSTEM_PROMPT = """あなたはECサイトのSEO専門家です。
 必ずこの形式を守ること:
 {"title": "...", "description": "..."}"""
 
-
-# ─────────────────────────────────────────────
-# Shopify 認証（client_credentials・トークンキャッシュ付き）
-# ─────────────────────────────────────────────
 _token            = None
 _token_expires_at = 0.0
 
 def get_access_token() -> str:
-    """
-    client_credentials フローでトークンを取得。
-    有効期限60秒前まではキャッシュを返す（24時間有効）。
-    公式仕様: Content-Type は application/x-www-form-urlencoded
-    """
     global _token, _token_expires_at
-
     if _token and time.time() < _token_expires_at - 60:
         return _token
-
     url = f"{SHOPIFY_BASE}/admin/oauth/access_token"
     resp = requests.post(
         url,
@@ -65,21 +51,15 @@ def get_access_token() -> str:
     )
     resp.raise_for_status()
     body = resp.json()
-
     _token            = body.get("access_token")
     expires_in        = body.get("expires_in", 86399)
     _token_expires_at = time.time() + expires_in
-
     if not _token:
         raise RuntimeError(f"トークン取得失敗: {resp.text}")
-
     print("✅ Shopify アクセストークン取得完了")
     return _token
 
 
-# ─────────────────────────────────────────────
-# Shopify REST API ヘルパー
-# ─────────────────────────────────────────────
 def shopify_get(path: str, params: dict = None) -> dict:
     token = get_access_token()
     url   = f"{SHOPIFY_BASE}/admin/api/{API_VERSION}/{path}"
@@ -106,9 +86,6 @@ def shopify_put(path: str, body: dict) -> dict:
     return resp.json()
 
 
-# ─────────────────────────────────────────────
-# コレクション取得
-# ─────────────────────────────────────────────
 def fetch_all_collections() -> list:
     collections = []
     for col_type in ("custom_collections", "smart_collections"):
@@ -134,16 +111,11 @@ def fetch_collection_products(collection_id: int, limit: int = 10) -> list:
         return []
 
 
-# ─────────────────────────────────────────────
-# Claude SEO 生成
-# ─────────────────────────────────────────────
 def generate_seo(collection_name: str, product_titles: list) -> dict:
     client = Anthropic(api_key=ANTHROPIC_API_KEY)
-
     products_text = ""
     if product_titles:
         products_text = "\n商品例（最大10件）:\n" + "\n".join(f"- {t}" for t in product_titles[:10])
-
     user_message = f"""コレクション名: {collection_name}
 {products_text}
 
@@ -152,25 +124,21 @@ def generate_seo(collection_name: str, product_titles: list) -> dict:
 - description: 120〜160文字。商品カテゴリ・特徴・購買訴求を含める。記号の多用は避ける。
 
 JSON形式のみで出力: {{"title": "...", "description": "..."}}"""
-
     response = client.messages.create(
         model="claude-sonnet-4-20250514",
         max_tokens=300,
         system=SYSTEM_PROMPT,
         messages=[{"role": "user", "content": user_message}],
     )
-
     raw = response.content[0].text.strip()
     raw = raw.replace("```json", "").replace("```", "").strip()
     result = json.loads(raw)
-
     warnings = []
     if len(result.get("title", "")) > 60:
         warnings.append(f"title {len(result['title'])}文字（60文字超）")
     desc_len = len(result.get("description", ""))
     if not (120 <= desc_len <= 160):
         warnings.append(f"description {desc_len}文字（120〜160推奨）")
-
     return {
         "title":       result.get("title", ""),
         "description": result.get("description", ""),
@@ -178,9 +146,6 @@ JSON形式のみで出力: {{"title": "...", "description": "..."}}"""
     }
 
 
-# ─────────────────────────────────────────────
-# Shopify メタ情報更新
-# ─────────────────────────────────────────────
 def update_collection_seo(collection: dict, seo: dict) -> bool:
     col_type = collection.get("_col_type", "custom_collections")
     col_id   = collection["id"]
@@ -188,9 +153,11 @@ def update_collection_seo(collection: dict, seo: dict) -> bool:
 
     body = {
         body_key: {
-            "id":                                col_id,
-            "metafields_global_title_tag":       seo["title"],
-            "metafields_global_description_tag": seo["description"],
+            "id": col_id,
+            "seo": {
+                "title":       seo["title"],
+                "description": seo["description"],
+            }
         }
     }
 
@@ -203,9 +170,6 @@ def update_collection_seo(collection: dict, seo: dict) -> bool:
         return False
 
 
-# ─────────────────────────────────────────────
-# エントリポイント（app.py から呼び出す）
-# ─────────────────────────────────────────────
 def run_seo_update(dry_run: bool = False, limit: int = None, target_id: int = None) -> dict:
     collections = fetch_all_collections()
 
@@ -220,7 +184,6 @@ def run_seo_update(dry_run: bool = False, limit: int = None, target_id: int = No
     for col in collections:
         col_id   = col["id"]
         col_name = col.get("title", f"Collection {col_id}")
-
         product_titles = fetch_collection_products(col_id)
 
         try:
