@@ -1,6 +1,7 @@
 """
 seo_collections.py
 モノ道楽 Shopify コレクション SEO メタ情報 生成・更新ロジック
+GraphQL Admin API でSEOフィールドを更新する
 """
 
 import os
@@ -33,6 +34,7 @@ SYSTEM_PROMPT = """あなたはECサイトのSEO専門家です。
 
 _token            = None
 _token_expires_at = 0.0
+
 
 def get_access_token() -> str:
     global _token, _token_expires_at
@@ -73,17 +75,21 @@ def shopify_get(path: str, params: dict = None) -> dict:
     return resp.json()
 
 
-def shopify_put(path: str, body: dict) -> dict:
+def shopify_graphql(query: str, variables: dict = None) -> dict:
+    """GraphQL Admin API を呼び出す"""
     token = get_access_token()
-    url   = f"{SHOPIFY_BASE}/admin/api/{API_VERSION}/{path}"
-    resp  = requests.put(
+    url   = f"{SHOPIFY_BASE}/admin/api/{API_VERSION}/graphql.json"
+    resp  = requests.post(
         url,
         headers={"X-Shopify-Access-Token": token, "Content-Type": "application/json"},
-        json=body,
+        json={"query": query, "variables": variables or {}},
         timeout=20,
     )
     resp.raise_for_status()
-    return resp.json()
+    data = resp.json()
+    if "errors" in data:
+        raise RuntimeError(f"GraphQLエラー: {data['errors']}")
+    return data
 
 
 def fetch_all_collections() -> list:
@@ -147,13 +153,34 @@ JSON形式のみで出力: {{"title": "...", "description": "..."}}"""
 
 
 def update_collection_seo(collection: dict, seo: dict) -> bool:
-    col_type = collection.get("_col_type", "custom_collections")
-    col_id   = collection["id"]
-    body_key = col_type.rstrip("s")  # "custom_collection" or "smart_collection"
+    """
+    GraphQL collectionUpdate でSEOを更新する
+    REST ID → GraphQL GID に変換して使用
+    """
+    col_id = collection["id"]
+    gid    = f"gid://shopify/Collection/{col_id}"
 
-    body = {
-        body_key: {
-            "id": col_id,
+    mutation = """
+    mutation collectionUpdate($input: CollectionInput!) {
+      collectionUpdate(input: $input) {
+        collection {
+          id
+          seo {
+            title
+            description
+          }
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+    """
+
+    variables = {
+        "input": {
+            "id": gid,
             "seo": {
                 "title":       seo["title"],
                 "description": seo["description"],
@@ -162,11 +189,15 @@ def update_collection_seo(collection: dict, seo: dict) -> bool:
     }
 
     try:
-        shopify_put(f"{col_type}/{col_id}.json", body)
+        result = shopify_graphql(mutation, variables)
+        user_errors = result.get("data", {}).get("collectionUpdate", {}).get("userErrors", [])
+        if user_errors:
+            print(f"GraphQL userErrors (id={col_id}): {user_errors}")
+            return False
         time.sleep(SHOPIFY_CALL_DELAY)
         return True
-    except requests.HTTPError as e:
-        print(f"PUT失敗 (id={col_id}): {e.response.status_code} {e.response.text[:200]}")
+    except Exception as e:
+        print(f"GraphQL失敗 (id={col_id}): {e}")
         return False
 
 
@@ -207,7 +238,7 @@ def run_seo_update(dry_run: bool = False, limit: int = None, target_id: int = No
             ok = update_collection_seo(col, seo)
             record["updated"] = ok
             if not ok:
-                failures.append({"id": col_id, "name": col_name, "reason": "PUT失敗"})
+                failures.append({"id": col_id, "name": col_name, "reason": "GraphQL失敗"})
         else:
             record["updated"] = "dry_run"
 
