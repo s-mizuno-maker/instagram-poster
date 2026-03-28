@@ -24,7 +24,68 @@ supabase: SupabaseClient = create_client(SUPABASE_URL, SUPABASE_KEY)
 INSTAGRAM_USERNAME = os.environ.get("INSTAGRAM_USERNAME", "")
 INSTAGRAM_PASSWORD = os.environ.get("INSTAGRAM_PASSWORD", "")
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+PINTEREST_ACCESS_TOKEN = os.environ.get("PINTEREST_ACCESS_TOKEN", "")
 
+# ── Pinterest ボードマッピング ─────────────────────────────
+PINTEREST_BOARD_MAP = {
+    "インテリア・家具": "1011339728762128965",
+    "キッチン・食器": "1011339728762128967",
+    "アクセサリー・小物": "1011339728762128968",
+    "アパレル・古着": "1011339728762128969",
+}
+DEFAULT_BOARD_ID = "1011339728762128965"
+
+# product_type / tags からボードIDを判定
+BOARD_KEYWORDS = {
+    "1011339728762128965": ["furniture", "interior"],
+    "1011339728762128967": ["tableware"],
+    "1011339728762128968": ["fashion"],
+    "1011339728762128969": ["clothing"],
+}
+
+def get_board_id(product_type: str, tags: str) -> str:
+    text = (product_type + " " + tags).lower()
+    for board_id, keywords in BOARD_KEYWORDS.items():
+        for kw in keywords:
+            if kw.lower() in text:
+                return board_id
+    return DEFAULT_BOARD_ID
+
+def post_to_pinterest(image_url: str, caption: str, product_id: str, product_type: str = "", tags: str = "", handle: str = ""):
+    if not PINTEREST_ACCESS_TOKEN:
+        print("Pinterest access token not set, skipping.")
+        return False
+    try:
+        board_id = get_board_id(product_type, tags)
+        link = f"https://monodoraku.com/products/{handle}" if handle else f"https://monodoraku.com"
+        title = caption.split("\n")[0][:100]
+        description = caption[:500]
+        headers = {
+            "Authorization": f"Bearer {PINTEREST_ACCESS_TOKEN}",
+            "Content-Type": "application/json"
+        }
+        data = {
+            "board_id": board_id,
+            "title": title,
+            "description": description,
+            "link": link,
+            "media_source": {
+                "source_type": "image_url",
+                "url": image_url
+            }
+        }
+        response = requests.post(
+            "https://api.pinterest.com/v5/pins",
+            headers=headers,
+            json=data
+        )
+        print(f"Pinterest post: {response.status_code} board={board_id} link={link}")
+        return response.status_code == 201
+    except Exception as e:
+        print(f"Pinterest post error: {e}")
+        return False
+
+# ── Supabase helpers ──────────────────────────────────────
 def get_posted_ids():
     try:
         response = supabase.table("posted_products").select("product_id").execute()
@@ -55,7 +116,10 @@ def save_scheduled_post(post):
             "image_urls": json.dumps(post["image_urls"]),
             "caption": post["caption"],
             "scheduled_time": post["scheduled_time"],
-            "is_posted": False
+            "is_posted": False,
+            "product_type": post.get("product_type", ""),
+            "tags": post.get("tags", ""),
+            "handle": post.get("handle", ""),
         }).execute()
     except Exception as e:
         print(f"Error saving scheduled post: {e}")
@@ -68,6 +132,7 @@ def mark_as_posted(post_id, product_id):
     except Exception as e:
         print(f"Error marking as posted: {e}")
 
+# ── Instagram 投稿 ────────────────────────────────────────
 def post_to_instagram(image_urls, caption):
     cl = InstaClient()
     session = os.environ.get("INSTAGRAM_SESSION")
@@ -92,10 +157,21 @@ def post_to_instagram(image_urls, caption):
     for path in image_paths:
         os.unlink(path)
 
+# ── スケジュール実行 ──────────────────────────────────────
 def execute_scheduled_post(post_data):
     try:
         image_urls = json.loads(post_data["image_urls"]) if isinstance(post_data["image_urls"], str) else post_data["image_urls"]
         post_to_instagram(image_urls, post_data["caption"])
+        # Pinterest投稿
+        if image_urls:
+            post_to_pinterest(
+                image_url=image_urls[0],
+                caption=post_data["caption"],
+                product_id=post_data["product_id"],
+                product_type=post_data.get("product_type", ""),
+                tags=post_data.get("tags", ""),
+                handle=post_data.get("handle", ""),
+            )
         mark_as_posted(post_data.get("post_id"), post_data["product_id"])
         print(f"Successfully posted: {post_data['product_id']}")
     except Exception as e:
@@ -117,6 +193,7 @@ def check_and_execute_scheduled_posts():
 
 threading.Thread(target=check_and_execute_scheduled_posts, daemon=True).start()
 
+# ── 商品取得 ──────────────────────────────────────────────
 def get_products():
     posted_ids = get_posted_ids()
 
@@ -155,12 +232,14 @@ def get_products():
                 "vendor": p.get("vendor", ""),
                 "product_type": p.get("product_type", ""),
                 "tags": p.get("tags", ""),
+                "handle": p.get("handle", ""),
                 "images": [img["src"] for img in p.get("images", [])],
                 "posted": str(p["id"]) in posted_ids
             })
         page += 1
     return products
 
+# ── キャプション生成 ──────────────────────────────────────
 def generate_caption(product):
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
     prompt = f"""あなたはモノ道楽というヴィンテージ・古物販売店のInstagram担当者です。
@@ -202,6 +281,7 @@ def generate_caption(product):
     )
     return message.content[0].text
 
+# ── Routes ────────────────────────────────────────────────
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -223,6 +303,10 @@ def api_post():
     image_urls = data["image_urls"]
     caption = data["caption"]
     scheduled_time = data.get("scheduled_time")
+    product_type = data.get("product_type", "")
+    tags = data.get("tags", "")
+    handle = data.get("handle", "")
+
     if scheduled_time:
         post_id = str(datetime.now().timestamp())
         post_data = {
@@ -230,13 +314,26 @@ def api_post():
             "product_id": product_id,
             "image_urls": image_urls,
             "caption": caption,
-            "scheduled_time": scheduled_time
+            "scheduled_time": scheduled_time,
+            "product_type": product_type,
+            "tags": tags,
+            "handle": handle,
         }
         save_scheduled_post(post_data)
         return jsonify({"success": True, "scheduled": True})
     else:
         try:
             post_to_instagram(image_urls, caption)
+            # Pinterest投稿
+            if image_urls:
+                post_to_pinterest(
+                    image_url=image_urls[0],
+                    caption=caption,
+                    product_id=product_id,
+                    product_type=product_type,
+                    tags=tags,
+                    handle=handle,
+                )
             mark_as_posted(None, product_id)
             return jsonify({"success": True, "scheduled": False})
         except Exception as e:
@@ -257,6 +354,7 @@ def api_cancel_scheduled():
         return jsonify({"success": True})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)})
+
 # ── SEO関連 ───────────────────────────────────────────────
 _seo_job  = {"running": False, "result": None, "error": None}
 _seo_lock = threading.Lock()
@@ -300,7 +398,7 @@ def seo_run():
 def seo_status():
     with _seo_lock:
         return jsonify(dict(_seo_job))
-        
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
