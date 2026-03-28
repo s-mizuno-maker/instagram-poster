@@ -10,9 +10,13 @@ from PIL import Image
 import tempfile
 from datetime import datetime
 from supabase import create_client, Client as SupabaseClient
+from seo_collections import run_seo_update
 
 app = Flask(__name__)
 
+SHOPIFY_CLIENT_ID     = os.environ.get("SHOPIFY_CLIENT_ID", "")
+SHOPIFY_CLIENT_SECRET = os.environ.get("SHOPIFY_CLIENT_SECRET", "")
+SHOPIFY_SHOP          = os.environ.get("SHOPIFY_SHOP", "monodoraku")
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
 supabase: SupabaseClient = create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -253,7 +257,50 @@ def api_cancel_scheduled():
         return jsonify({"success": True})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)})
+# ── SEO関連 ───────────────────────────────────────────────
+_seo_job  = {"running": False, "result": None, "error": None}
+_seo_lock = threading.Lock()
 
+@app.route("/seo")
+def seo_page():
+    return render_template("seo.html")
+
+@app.route("/api/seo/run", methods=["POST"])
+def seo_run():
+    global _seo_job
+    with _seo_lock:
+        if _seo_job["running"]:
+            return jsonify({"error": "既に実行中です"}), 409
+        data      = request.get_json(silent=True) or {}
+        dry_run   = bool(data.get("dry_run", False))
+        limit     = data.get("limit")
+        target_id = data.get("target_id")
+        _seo_job  = {"running": True, "result": None, "error": None}
+
+    def _worker():
+        global _seo_job
+        try:
+            result = run_seo_update(
+                dry_run=dry_run,
+                limit=int(limit) if limit else None,
+                target_id=int(target_id) if target_id else None,
+            )
+            with _seo_lock:
+                _seo_job["result"]  = result
+                _seo_job["running"] = False
+        except Exception as e:
+            with _seo_lock:
+                _seo_job["error"]   = str(e)
+                _seo_job["running"] = False
+
+    threading.Thread(target=_worker, daemon=True).start()
+    return jsonify({"status": "started", "dry_run": dry_run}), 202
+
+@app.route("/api/seo/status")
+def seo_status():
+    with _seo_lock:
+        return jsonify(dict(_seo_job))
+        
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
