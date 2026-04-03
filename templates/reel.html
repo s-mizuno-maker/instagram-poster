@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>リール動画生成 | MONOdoraku</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif; background: #0f0f0f; color: #eee; min-height: 100vh; }
+
+  header { background: #1a1a1a; border-bottom: 1px solid #333; padding: 16px 24px; display: flex; align-items: center; gap: 16px; }
+  header h1 { font-size: 18px; font-weight: 500; color: #fff; letter-spacing: 0.05em; }
+  header a { color: #888; text-decoration: none; font-size: 14px; }
+  header a:hover { color: #fff; }
+
+  .container { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
+
+  /* STEP */
+  .step { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 12px; padding: 24px; margin-bottom: 24px; }
+  .step-label { font-size: 11px; font-weight: 600; letter-spacing: 0.1em; color: #888; text-transform: uppercase; margin-bottom: 12px; }
+  .step h2 { font-size: 16px; font-weight: 500; margin-bottom: 16px; color: #fff; }
+
+  /* 商品検索 */
+  .search-row { display: flex; gap: 12px; }
+  .search-row input { flex: 1; background: #111; border: 1px solid #333; border-radius: 8px; padding: 10px 14px; color: #eee; font-size: 14px; outline: none; }
+  .search-row input:focus { border-color: #555; }
+  .btn { background: #333; border: none; border-radius: 8px; padding: 10px 20px; color: #fff; font-size: 14px; cursor: pointer; transition: background 0.2s; }
+  .btn:hover { background: #444; }
+  .btn-primary { background: #fff; color: #000; }
+  .btn-primary:hover { background: #ddd; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* 商品リスト */
+  #product-list { margin-top: 16px; max-height: 320px; overflow-y: auto; }
+  .product-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 8px; cursor: pointer; transition: background 0.15s; }
+  .product-item:hover { background: #252525; }
+  .product-item.selected { background: #252525; border: 1px solid #444; }
+  .product-item img { width: 48px; height: 48px; object-fit: cover; border-radius: 6px; }
+  .product-item .info { flex: 1; min-width: 0; }
+  .product-item .title { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #ddd; }
+  .product-item .meta { font-size: 11px; color: #666; margin-top: 2px; }
+
+  /* 画像セレクト */
+  #image-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; margin-top: 12px; }
+  .img-item { position: relative; cursor: pointer; border-radius: 8px; overflow: hidden; aspect-ratio: 1; }
+  .img-item img { width: 100%; height: 100%; object-fit: cover; transition: opacity 0.2s; }
+  .img-item.selected::after { content: '✓'; position: absolute; inset: 0; background: rgba(255,255,255,0.15); display: flex; align-items: center; justify-content: center; font-size: 28px; color: #fff; }
+  .img-item:not(.selected) img { opacity: 0.45; }
+  .img-item.selected img { opacity: 1; }
+  .img-order { position: absolute; top: 6px; left: 6px; background: #fff; color: #000; border-radius: 50%; width: 22px; height: 22px; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+
+  /* キャッチ */
+  #catchcopy { width: 100%; background: #111; border: 1px solid #333; border-radius: 8px; padding: 12px 14px; color: #eee; font-size: 15px; line-height: 1.8; resize: vertical; min-height: 100px; outline: none; font-family: 'Hiragino Mincho ProN', 'Yu Mincho', Georgia, serif; }
+  #catchcopy:focus { border-color: #555; }
+  .catch-actions { display: flex; gap: 8px; margin-top: 10px; }
+
+  /* スケジュール */
+  #scheduled-time { background: #111; border: 1px solid #333; border-radius: 8px; padding: 10px 14px; color: #eee; font-size: 14px; outline: none; }
+
+  /* 生成ボタン */
+  .generate-section { text-align: center; padding: 8px 0; }
+  #btn-generate { padding: 14px 48px; font-size: 16px; border-radius: 10px; }
+
+  /* ログ */
+  #log { background: #111; border: 1px solid #222; border-radius: 8px; padding: 16px; font-family: monospace; font-size: 13px; line-height: 1.8; min-height: 80px; white-space: pre-wrap; color: #aaa; margin-top: 16px; display: none; }
+  #log.active { display: block; }
+  .log-ok { color: #6ee7b7; }
+  .log-err { color: #f87171; }
+  .log-info { color: #93c5fd; }
+
+  /* 結果 */
+  #result-section { display: none; }
+  #result-section.active { display: block; }
+  .video-preview { width: 100%; max-width: 360px; border-radius: 12px; margin: 0 auto; display: block; }
+
+  .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid #555; border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; margin-right: 8px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .tag { display: inline-block; background: #222; border-radius: 4px; padding: 2px 8px; font-size: 11px; color: #888; margin: 2px; }
+  .divider { border: none; border-top: 1px solid #2a2a2a; margin: 8px 0; }
+</style>
+</head>
+<body>
+
+<header>
+  <a href="/">← 投稿管理</a>
+  <h1>リール動画生成</h1>
+</header>
+
+<div class="container">
+
+  <!-- STEP 1: 商品選択 -->
+  <div class="step">
+    <div class="step-label">Step 1</div>
+    <h2>商品を選ぶ</h2>
+    <div class="search-row">
+      <input type="text" id="search-input" placeholder="商品名で検索…" oninput="filterProducts()">
+    </div>
+    <div id="product-list"><p style="color:#555;font-size:13px;padding:12px 0;">読み込み中…</p></div>
+  </div>
+
+  <!-- STEP 2: 画像セレクト -->
+  <div class="step" id="step-images" style="display:none">
+    <div class="step-label">Step 2</div>
+    <h2>使う画像を選ぶ <span style="font-size:13px;color:#666;font-weight:400">（順番通りに表示されます）</span></h2>
+    <div id="image-grid"></div>
+    <p id="img-count" style="font-size:12px;color:#666;margin-top:10px;"></p>
+  </div>
+
+  <!-- STEP 3: キャッチコピー -->
+  <div class="step" id="step-catch" style="display:none">
+    <div class="step-label">Step 3</div>
+    <h2>キャッチコピー</h2>
+    <textarea id="catchcopy" placeholder="AIで生成するか、直接入力してください"></textarea>
+    <div class="catch-actions">
+      <button class="btn" id="btn-gen-catch" onclick="generateCatch()">✦ AIで生成</button>
+      <button class="btn" onclick="document.getElementById('catchcopy').value=''">クリア</button>
+    </div>
+  </div>
+
+  <!-- STEP 4: スケジュール -->
+  <div class="step" id="step-schedule" style="display:none">
+    <div class="step-label">Step 4</div>
+    <h2>投稿スケジュール</h2>
+    <input type="datetime-local" id="scheduled-time">
+    <p style="font-size:12px;color:#555;margin-top:8px;">空欄の場合は1時間後に設定されます</p>
+  </div>
+
+  <!-- 生成ボタン -->
+  <div class="generate-section" id="step-generate" style="display:none">
+    <button class="btn btn-primary" id="btn-generate" onclick="generateReel()">動画を生成する</button>
+  </div>
+
+  <!-- ログ -->
+  <div id="log"></div>
+
+  <!-- 結果 -->
+  <div class="step" id="result-section">
+    <div class="step-label">完成</div>
+    <h2>動画が生成されました</h2>
+    <video id="video-preview" class="video-preview" controls></video>
+    <p id="video-url" style="font-size:12px;color:#555;margin-top:10px;word-break:break-all;"></p>
+  </div>
+
+</div>
+
+<script>
+let allProducts = [];
+let selectedProduct = null;
+let selectedImages = []; // {url, index} の順序付き配列
+
+// ── 商品読み込み ──────────────────────────────────────
+async function loadProducts() {
+  const res = await fetch('/api/products');
+  allProducts = await res.json();
+  renderProducts(allProducts);
+}
+
+function filterProducts() {
+  const q = document.getElementById('search-input').value.toLowerCase();
+  const filtered = q ? allProducts.filter(p => p.title.toLowerCase().includes(q)) : allProducts;
+  renderProducts(filtered.slice(0, 50));
+}
+
+function renderProducts(products) {
+  const el = document.getElementById('product-list');
+  if (!products.length) { el.innerHTML = '<p style="color:#555;font-size:13px;padding:12px 0;">該当なし</p>'; return; }
+  el.innerHTML = products.map(p => `
+    <div class="product-item ${selectedProduct?.id === p.id ? 'selected' : ''}" onclick="selectProduct(${JSON.stringify(p).replace(/"/g, '&quot;')})">
+      <img src="${p.images[0] || ''}" onerror="this.style.display='none'">
+      <div class="info">
+        <div class="title">${p.title}</div>
+        <div class="meta">${p.product_type || ''} · 画像${p.images.length}枚</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function selectProduct(p) {
+  selectedProduct = p;
+  selectedImages = [];
+  filterProducts();
+  renderImageGrid();
+  document.getElementById('step-images').style.display = 'block';
+  document.getElementById('step-catch').style.display = 'block';
+  document.getElementById('step-schedule').style.display = 'block';
+  document.getElementById('step-generate').style.display = 'block';
+  document.getElementById('catchcopy').value = '';
+  document.getElementById('step-images').scrollIntoView({behavior:'smooth'});
+}
+
+// ── 画像グリッド ──────────────────────────────────────
+function renderImageGrid() {
+  const grid = document.getElementById('image-grid');
+  if (!selectedProduct) return;
+  grid.innerHTML = selectedProduct.images.map((url, i) => {
+    const selIdx = selectedImages.findIndex(s => s.url === url);
+    const isSelected = selIdx !== -1;
+    return `
+      <div class="img-item ${isSelected ? 'selected' : ''}" onclick="toggleImage('${url}', ${i})" id="imgitem-${i}">
+        <img src="${url}" loading="lazy">
+        ${isSelected ? `<div class="img-order">${selIdx + 1}</div>` : ''}
+      </div>`;
+  }).join('');
+  updateImgCount();
+}
+
+function toggleImage(url, i) {
+  const idx = selectedImages.findIndex(s => s.url === url);
+  if (idx !== -1) {
+    selectedImages.splice(idx, 1);
+  } else {
+    selectedImages.push({url, index: i});
+  }
+  renderImageGrid();
+}
+
+function updateImgCount() {
+  document.getElementById('img-count').textContent =
+    selectedImages.length ? `${selectedImages.length}枚選択中` : '画像をクリックして選択してください';
+}
+
+// ── キャッチコピー生成 ────────────────────────────────
+async function generateCatch() {
+  if (!selectedProduct) return;
+  const btn = document.getElementById('btn-gen-catch');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>生成中…';
+  const res = await fetch('/api/reel/generate_catch', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({product: selectedProduct})
+  });
+  const data = await res.json();
+  document.getElementById('catchcopy').value = data.catchcopy || '';
+  btn.disabled = false;
+  btn.innerHTML = '✦ AIで生成';
+}
+
+// ── 動画生成 ──────────────────────────────────────────
+async function generateReel() {
+  if (!selectedProduct) { alert('商品を選んでください'); return; }
+  if (selectedImages.length === 0) { alert('画像を選んでください'); return; }
+  const catchcopy = document.getElementById('catchcopy').value.trim();
+  if (!catchcopy) { alert('キャッチコピーを入力または生成してください'); return; }
+
+  const scheduledTime = document.getElementById('scheduled-time').value;
+  const btn = document.getElementById('btn-generate');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>生成中…';
+
+  const log = document.getElementById('log');
+  log.className = 'active';
+  log.innerHTML = '<span class="log-info">動画生成を開始します…</span>\n';
+
+  document.getElementById('result-section').className = 'step';
+
+  try {
+    const res = await fetch('/api/reel/generate', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        product: selectedProduct,
+        image_urls: selectedImages.map(s => s.url),
+        catchcopy,
+        scheduled_time: scheduledTime || null,
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
+      log.innerHTML += `<span class="log-ok">✓ 動画生成完了\n✓ Cloudinaryアップロード完了\n✓ Supabase登録完了</span>\n`;
+      document.getElementById('result-section').className = 'step active';
+      document.getElementById('video-preview').src = data.video_url;
+      document.getElementById('video-url').textContent = data.video_url;
+    } else {
+      log.innerHTML += `<span class="log-err">エラー: ${data.error}</span>\n`;
+    }
+  } catch (e) {
+    log.innerHTML += `<span class="log-err">通信エラー: ${e}</span>\n`;
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '動画を生成する';
+}
+
+loadProducts();
+</script>
+</body>
+</html>
