@@ -14,10 +14,10 @@ body { font-family: -apple-system, sans-serif; background: #f5f5f5; color: #333;
 .step-card { background: white; border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem; border: 1px solid #eee; display: none; }
 .step-card.active { display: block; }
 #step-1 { display: block; }
+#scheduled-section { display: block; }
 .step-label { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; color: #aaa; text-transform: uppercase; margin-bottom: 6px; }
 .step-card h2 { font-size: 15px; font-weight: 500; margin-bottom: 1rem; }
-.filters { display: flex; gap: 8px; margin-bottom: 1rem; }
-.filters input { flex: 1; padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; }
+.filters input { width: 100%; padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; margin-bottom: 1rem; }
 .product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; max-height: 400px; overflow-y: auto; }
 .product-card { background: #fafafa; border-radius: 8px; overflow: hidden; border: 2px solid transparent; cursor: pointer; transition: border-color 0.15s; }
 .product-card:hover { border-color: #ccc; }
@@ -33,18 +33,12 @@ body { font-family: -apple-system, sans-serif; background: #f5f5f5; color: #333;
 .img-order { position: absolute; top: 3px; left: 3px; background: #0071e3; color: white; font-size: 10px; width: 16px; height: 16px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 500; }
 .img-count { font-size: 12px; color: #888; margin-top: 8px; }
 .caption-box { width: 100%; height: 120px; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; line-height: 1.8; resize: vertical; font-family: 'Hiragino Mincho ProN', 'Yu Mincho', Georgia, serif; }
-.btn-row { display: flex; gap: 8px; margin-top: 10px; }
-.schedule-section { margin-top: 1rem; padding: 12px; background: #f5f5f5; border-radius: 8px; }
-.schedule-section label { font-size: 13px; color: #555; display: block; margin-bottom: 6px; }
-.schedule-toggle { display: flex; gap: 8px; margin-bottom: 8px; }
-.schedule-toggle button { padding: 6px 16px; border-radius: 6px; border: 1px solid #ddd; font-size: 13px; cursor: pointer; background: white; }
-.schedule-toggle button.active { background: #0071e3; color: white; border-color: #0071e3; }
-.datetime-input { padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; display: none; }
-.datetime-input.show { display: block; }
-.btn { padding: 8px 20px; border-radius: 8px; font-size: 14px; cursor: pointer; border: none; }
+.btn-row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.btn { padding: 8px 20px; border-radius: 8px; font-size: 14px; cursor: pointer; border: none; white-space: nowrap; }
 .btn-primary { background: #0071e3; color: white; }
 .btn-primary:hover { background: #005bb5; }
 .btn-secondary { background: #f0f0f0; color: #333; }
+.btn-danger { background: #ff3b30; color: white; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .bottom-bar { position: fixed; bottom: 0; left: 0; right: 0; background: white; border-top: 1px solid #eee; padding: 1rem 1.5rem; display: flex; align-items: center; gap: 12px; z-index: 50; }
 .selected-info { font-size: 14px; color: #666; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 50%; }
@@ -52,10 +46,28 @@ body { font-family: -apple-system, sans-serif; background: #f5f5f5; color: #333;
 #log.active { display: block; }
 .log-ok { color: #6ee7b7; }
 .log-err { color: #f87171; }
-.video-preview { max-width: 300px; border-radius: 12px; display: block; margin: 0 auto; }
 .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #ccc; border-top-color: #0071e3; border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; margin-right: 6px; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .loading { text-align: center; padding: 2rem; color: #888; font-size: 13px; }
+
+/* プレビューセクション */
+.preview-area { display: flex; gap: 2rem; align-items: flex-start; flex-wrap: wrap; }
+.video-wrap { flex: 0 0 auto; }
+.video-preview { width: 280px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); display: block; }
+.preview-actions { flex: 1; min-width: 200px; }
+.preview-actions h3 { font-size: 14px; font-weight: 500; margin-bottom: 12px; color: #333; }
+.datetime-input { width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; margin-bottom: 12px; }
+.video-url-text { font-size: 11px; color: #aaa; word-break: break-all; margin-top: 8px; }
+
+/* 予約一覧 */
+.scheduled-card { display: flex; align-items: center; gap: 12px; padding: 12px; border-bottom: 1px solid #f0f0f0; }
+.scheduled-card:last-child { border-bottom: none; }
+.sch-thumb { width: 60px; height: 60px; border-radius: 6px; object-fit: cover; background: #eee; flex-shrink: 0; }
+.sch-info { flex: 1; min-width: 0; }
+.sch-time { font-size: 12px; font-weight: bold; color: #0071e3; margin-bottom: 2px; }
+.sch-title { font-size: 13px; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sch-caption { font-size: 11px; color: #888; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.badge { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 4px; background: #e3f2fd; color: #1565c0; }
 </style>
 </head>
 <body>
@@ -64,6 +76,15 @@ body { font-family: -apple-system, sans-serif; background: #f5f5f5; color: #333;
   <a href="/">← 投稿管理に戻る</a>
 </div>
 <div class="container">
+
+  <!-- 予約一覧 -->
+  <div class="step-card active" id="scheduled-section">
+    <div class="step-label">予約中のリール</div>
+    <h2>📅 待機中のリール投稿</h2>
+    <div id="scheduled-list"><div class="loading">読み込み中...</div></div>
+  </div>
+
+  <!-- Step1: 商品選択 -->
   <div class="step-card active" id="step-1">
     <div class="step-label">Step 1</div>
     <h2>商品を選ぶ</h2>
@@ -74,12 +95,16 @@ body { font-family: -apple-system, sans-serif; background: #f5f5f5; color: #333;
       <div class="loading">商品を読み込み中...</div>
     </div>
   </div>
+
+  <!-- Step2: 画像選択 -->
   <div class="step-card" id="step-2">
     <div class="step-label">Step 2</div>
     <h2>使う画像を選ぶ <span style="font-size:12px;color:#aaa;font-weight:400">クリックで選択</span></h2>
     <div class="img-grid" id="img-grid"></div>
     <div class="img-count" id="img-count"></div>
   </div>
+
+  <!-- Step3: キャッチコピー -->
   <div class="step-card" id="step-3">
     <div class="step-label">Step 3</div>
     <h2>キャッチコピー</h2>
@@ -89,46 +114,100 @@ body { font-family: -apple-system, sans-serif; background: #f5f5f5; color: #333;
       <button class="btn btn-secondary" onclick="document.getElementById('catchcopy').value=''">クリア</button>
     </div>
   </div>
-  <div class="step-card" id="step-4">
-    <div class="step-label">Step 4</div>
-    <h2>投稿スケジュール</h2>
-    <div class="schedule-section">
-      <label>投稿タイミング</label>
-      <div class="schedule-toggle">
-        <button class="active" id="btn-now" onclick="setScheduleMode('now')">1時間後</button>
-        <button id="btn-schedule" onclick="setScheduleMode('schedule')">時間を指定</button>
-      </div>
-      <input type="datetime-local" class="datetime-input" id="scheduled-time">
-    </div>
-  </div>
+
+  <!-- ログ -->
   <div id="log"></div>
-  <div class="step-card" id="result-section">
-    <div class="step-label">完成</div>
-    <h2>動画が生成されました 🎉</h2>
-    <div style="text-align:center;margin:1rem 0;">
-      <video id="video-preview" class="video-preview" controls playsinline style="max-width:320px;max-height:560px;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,0.15);"></video>
-    </div>
-    <p id="video-url" style="font-size:11px;color:#aaa;margin-top:8px;word-break:break-all;text-align:center;"></p>
-    <div style="text-align:center;margin-top:12px;">
-      <a id="video-dl" href="#" target="_blank" class="btn btn-secondary" style="display:inline-block;text-decoration:none;">↗ Cloudinaryで開く</a>
+
+  <!-- Step4: プレビュー・予約 -->
+  <div class="step-card" id="step-4">
+    <div class="step-label">Step 4 — プレビュー確認・予約</div>
+    <h2>動画を確認して投稿予約</h2>
+    <div class="preview-area">
+      <div class="video-wrap">
+        <video id="video-preview" class="video-preview" controls playsinline></video>
+      </div>
+      <div class="preview-actions">
+        <h3>投稿スケジュール</h3>
+        <label style="font-size:13px;color:#555;display:block;margin-bottom:6px;">投稿日時（空欄=1時間後）</label>
+        <input type="datetime-local" class="datetime-input" id="scheduled-time">
+        <div class="btn-row" style="flex-direction:column;">
+          <button class="btn btn-primary" onclick="reservePost()">✓ この動画を投稿予約する</button>
+          <button class="btn btn-secondary" onclick="discardVideo()">✗ やり直す</button>
+        </div>
+        <p class="video-url-text" id="video-url"></p>
+      </div>
     </div>
   </div>
+
 </div>
+
 <div class="bottom-bar">
   <span class="selected-info" id="selected-info">商品を選択してください</span>
   <button class="btn btn-secondary" onclick="clearSelection()" style="margin-left:auto;">選択解除</button>
   <button class="btn btn-primary" id="btn-generate" onclick="generateReel()" disabled>動画を生成する</button>
 </div>
+
 <script>
 let allProducts = [];
 let selectedProduct = null;
 let selectedImages = [];
-let scheduleMode = 'now';
+let currentVideoUrl = null;
+let currentPostId = null;
 
 async function loadProducts() {
   const res = await fetch('/api/products');
   allProducts = await res.json();
   filterProducts();
+  loadScheduled();
+}
+
+async function loadScheduled() {
+  const list = document.getElementById('scheduled-list');
+  try {
+    const res = await fetch('/api/scheduled');
+    const posts = await res.json();
+    // リール動画（Cloudinaryのmp4）のみ表示
+    const reels = posts.filter(p => {
+      const urls = typeof p.image_urls === 'string' ? JSON.parse(p.image_urls) : p.image_urls;
+      return urls && urls[0] && urls[0].includes('cloudinary') && urls[0].includes('.mp4');
+    });
+    if (!reels.length) {
+      list.innerHTML = '<div style="font-size:13px;color:#999;padding:8px 0;">予約中のリール投稿はありません</div>';
+      return;
+    }
+    list.innerHTML = reels.map(post => {
+      const urls = typeof post.image_urls === 'string' ? JSON.parse(post.image_urls) : post.image_urls;
+      const videoUrl = urls[0];
+      return `
+        <div class="scheduled-card">
+          <video class="sch-thumb" src="${videoUrl}" muted playsinline></video>
+          <div class="sch-info">
+            <div class="sch-time">⏰ ${new Date(post.scheduled_time).toLocaleString('ja-JP')}</div>
+            <div class="sch-title">商品ID: ${post.product_id}</div>
+            <div class="sch-caption">${post.caption || ''}</div>
+          </div>
+          <span class="badge">予約中</span>
+          <button class="btn btn-danger" style="padding:6px 12px;font-size:12px;" onclick="cancelPost('${post.post_id}')">取消</button>
+        </div>`;
+    }).join('');
+  } catch(e) {
+    list.innerHTML = '<div style="color:red;font-size:12px;">取得に失敗しました</div>';
+  }
+}
+
+async function cancelPost(postId) {
+  if (!confirm('この予約を取り消しますか？')) return;
+  const res = await fetch('/api/cancel_scheduled', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({post_id: postId})
+  });
+  const data = await res.json();
+  if (data.success) {
+    loadScheduled();
+  } else {
+    alert('取消に失敗しました: ' + data.error);
+  }
 }
 
 function filterProducts() {
@@ -161,26 +240,29 @@ function selectProduct(id) {
   selectedImages = [];
   filterProducts();
   renderImageGrid();
-  ['step-2','step-3','step-4'].forEach(s => document.getElementById(s).classList.add('active'));
+  ['step-2','step-3'].forEach(s => document.getElementById(s).classList.add('active'));
+  document.getElementById('step-4').classList.remove('active');
   document.getElementById('catchcopy').value = '';
   document.getElementById('selected-info').textContent = selectedProduct.title.slice(0, 40);
   document.getElementById('btn-generate').disabled = false;
-  document.getElementById('step-2').scrollIntoView({behavior: 'smooth'});
+  document.getElementById('step-2').scrollIntoView({behavior:'smooth'});
 }
 
 function clearSelection() {
   selectedProduct = null;
   selectedImages = [];
+  currentVideoUrl = null;
   filterProducts();
   ['step-2','step-3','step-4'].forEach(s => document.getElementById(s).classList.remove('active'));
   document.getElementById('selected-info').textContent = '商品を選択してください';
   document.getElementById('btn-generate').disabled = true;
+  document.getElementById('log').className = '';
 }
 
 function renderImageGrid() {
   const grid = document.getElementById('img-grid');
   if (!selectedProduct) return;
-  grid.innerHTML = selectedProduct.images.map((url, i) => {
+  grid.innerHTML = selectedProduct.images.map((url) => {
     const selIdx = selectedImages.indexOf(url);
     const isSel = selIdx !== -1;
     return `
@@ -198,13 +280,6 @@ function toggleImage(url) {
   if (idx !== -1) selectedImages.splice(idx, 1);
   else selectedImages.push(url);
   renderImageGrid();
-}
-
-function setScheduleMode(mode) {
-  scheduleMode = mode;
-  document.getElementById('btn-now').classList.toggle('active', mode === 'now');
-  document.getElementById('btn-schedule').classList.toggle('active', mode === 'schedule');
-  document.getElementById('scheduled-time').classList.toggle('show', mode === 'schedule');
 }
 
 async function generateCatch() {
@@ -230,33 +305,30 @@ async function generateReel() {
   if (selectedImages.length === 0) { alert('画像を選んでください'); return; }
   const catchcopy = document.getElementById('catchcopy').value.trim();
   if (!catchcopy) { alert('キャッチコピーを入力または生成してください'); return; }
-  let scheduledTime = null;
-  if (scheduleMode === 'schedule') {
-    scheduledTime = document.getElementById('scheduled-time').value;
-    if (!scheduledTime) { alert('投稿時間を選択してください'); return; }
-    scheduledTime = new Date(scheduledTime).toISOString();
-  }
+
   const btn = document.getElementById('btn-generate');
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span>生成中…';
+
   const log = document.getElementById('log');
   log.className = 'active';
-  log.innerHTML = '動画生成を開始します…\n';
-  document.getElementById('result-section').classList.remove('active');
+  log.innerHTML = '動画を生成しています…（1〜2分かかります）\n';
+  document.getElementById('step-4').classList.remove('active');
+
   try {
-    const res = await fetch('/api/reel/generate', {
+    const res = await fetch('/api/reel/generate_only', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ product: selectedProduct, image_urls: selectedImages, catchcopy, scheduled_time: scheduledTime })
+      body: JSON.stringify({ product: selectedProduct, image_urls: selectedImages, catchcopy })
     });
     const data = await res.json();
     if (data.success) {
-      log.innerHTML += '<span class="log-ok">✓ 動画生成完了\n✓ Cloudinaryアップロード完了\n✓ Supabase登録完了</span>';
-      document.getElementById('result-section').classList.add('active');
+      currentVideoUrl = data.video_url;
+      log.innerHTML += '<span class="log-ok">✓ 動画生成・アップロード完了！下でプレビューを確認してください</span>';
+      document.getElementById('step-4').classList.add('active');
       document.getElementById('video-preview').src = data.video_url;
       document.getElementById('video-url').textContent = data.video_url;
-      document.getElementById('video-dl').href = data.video_url;
-      document.getElementById('result-section').scrollIntoView({behavior:'smooth'});
+      document.getElementById('step-4').scrollIntoView({behavior:'smooth'});
     } else {
       log.innerHTML += `<span class="log-err">エラー: ${data.error}</span>`;
     }
@@ -267,7 +339,41 @@ async function generateReel() {
   btn.innerHTML = '動画を生成する';
 }
 
+async function reservePost() {
+  if (!currentVideoUrl) return;
+  const scheduledTime = document.getElementById('scheduled-time').value;
+  const caption = `${selectedProduct.title_en || selectedProduct.title}\n\n#monodoraku #モノ道楽 #vintage #antique`;
+
+  const res = await fetch('/api/reel/reserve', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      product: selectedProduct,
+      video_url: currentVideoUrl,
+      caption,
+      scheduled_time: scheduledTime ? new Date(scheduledTime).toISOString() : null
+    })
+  });
+  const data = await res.json();
+  if (data.success) {
+    alert('投稿予約しました！');
+    clearSelection();
+    loadScheduled();
+  } else {
+    alert('予約に失敗しました: ' + data.error);
+  }
+}
+
+function discardVideo() {
+  if (!confirm('この動画を破棄してやり直しますか？')) return;
+  currentVideoUrl = null;
+  document.getElementById('step-4').classList.remove('active');
+  document.getElementById('log').className = '';
+  document.getElementById('step-2').scrollIntoView({behavior:'smooth'});
+}
+
 loadProducts();
+setInterval(loadScheduled, 30000);
 </script>
 </body>
 </html>
