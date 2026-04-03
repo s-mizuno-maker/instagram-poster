@@ -52,11 +52,9 @@ supabase: SupabaseClient = create_client(SUPABASE_URL, SUPABASE_KEY)
 # ── フォント取得（細め明朝体）────────────────────────────
 def get_mincho_font(size: int):
     font_paths = [
-        "/System/Library/Fonts/ヒラギノ明朝 ProN W3.ttc",
-        "/System/Library/Fonts/Hiragino Mincho ProN W3.ttc",
-        "/Library/Fonts/Yu Mincho Medium.ttf",
-        "/System/Library/Fonts/Supplemental/Times New Roman.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf",
+        "/System/Library/Fonts/ヒラギノ明朝 ProN.ttc",
+        "/System/Library/Fonts/ヒラギノ角ゴシック W3.ttc",
+        "/System/Library/Fonts/Hiragino Sans GB.ttc",
     ]
     for fp in font_paths:
         if Path(fp).exists():
