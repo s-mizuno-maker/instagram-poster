@@ -251,6 +251,7 @@ def generate_reel(product: dict, selected_image_urls: list, catchcopy: str, tmpd
 
     if Path(BGM_PATH).exists():
         audio = AudioFileClip(BGM_PATH).subclip(0, video.duration)
+        audio = audio.volumex(0.7)  # 音量調整 0.0〜1.0
         audio = audio.audio_fadeout(1.5)
         video = video.set_audio(audio)
 
