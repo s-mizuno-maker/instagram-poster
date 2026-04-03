@@ -68,7 +68,7 @@ body { font-family: -apple-system, sans-serif; background: #f5f5f5; color: #333;
     <div class="step-label">Step 1</div>
     <h2>商品を選ぶ</h2>
     <div class="filters">
-      <input type="text" id="search" placeholder="商品名で検索..." oninput="filterProducts()">
+      <input type="text" id="search" placeholder="商品名・SKU・ブランドで検索..." oninput="filterProducts()">
     </div>
     <div class="product-grid" id="product-grid">
       <div class="loading">商品を読み込み中...</div>
@@ -105,8 +105,13 @@ body { font-family: -apple-system, sans-serif; background: #f5f5f5; color: #333;
   <div class="step-card" id="result-section">
     <div class="step-label">完成</div>
     <h2>動画が生成されました 🎉</h2>
-    <video id="video-preview" class="video-preview" controls></video>
+    <div style="text-align:center;margin:1rem 0;">
+      <video id="video-preview" class="video-preview" controls playsinline style="max-width:320px;max-height:560px;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,0.15);"></video>
+    </div>
     <p id="video-url" style="font-size:11px;color:#aaa;margin-top:8px;word-break:break-all;text-align:center;"></p>
+    <div style="text-align:center;margin-top:12px;">
+      <a id="video-dl" href="#" target="_blank" class="btn btn-secondary" style="display:inline-block;text-decoration:none;">↗ Cloudinaryで開く</a>
+    </div>
   </div>
 </div>
 <div class="bottom-bar">
@@ -129,7 +134,10 @@ async function loadProducts() {
 function filterProducts() {
   const q = document.getElementById('search').value.toLowerCase();
   const filtered = q
-    ? allProducts.filter(p => p.title.toLowerCase().includes(q) || (p.vendor||'').toLowerCase().includes(q))
+    ? allProducts.filter(p =>
+        p.title.toLowerCase().includes(q) ||
+        (p.vendor||'').toLowerCase().includes(q) ||
+        (p.sku||'').toLowerCase().includes(q))
     : allProducts;
   renderProducts(filtered.slice(0, 60));
 }
@@ -142,7 +150,7 @@ function renderProducts(products) {
       <img class="product-img" src="${p.images[0]||''}" loading="lazy" onerror="this.style.background='#eee'">
       <div class="product-info">
         <div class="product-title">${p.title}</div>
-        <div class="product-meta">${p.product_type||''} · 画像${p.images.length}枚</div>
+        <div class="product-meta">${p.product_type||''} · 画像${p.images.length}枚${p.sku ? ` · ${p.sku}` : ''}</div>
       </div>
     </div>
   `).join('');
@@ -247,6 +255,8 @@ async function generateReel() {
       document.getElementById('result-section').classList.add('active');
       document.getElementById('video-preview').src = data.video_url;
       document.getElementById('video-url').textContent = data.video_url;
+      document.getElementById('video-dl').href = data.video_url;
+      document.getElementById('result-section').scrollIntoView({behavior:'smooth'});
     } else {
       log.innerHTML += `<span class="log-err">エラー: ${data.error}</span>`;
     }
