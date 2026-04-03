@@ -398,7 +398,43 @@ def seo_run():
 def seo_status():
     with _seo_lock:
         return jsonify(dict(_seo_job))
+        
+@app.route("/reel")
+def reel_page():
+    return render_template("reel.html")
 
+@app.route("/api/reel/generate_catch", methods=["POST"])
+def api_reel_generate_catch():
+    from reel_generator import generate_catchcopy
+    product = request.json.get("product", {})
+    try:
+        catchcopy = generate_catchcopy(product)
+        return jsonify({"catchcopy": catchcopy})
+    except Exception as e:
+        return jsonify({"catchcopy": "", "error": str(e)})
+
+@app.route("/api/reel/generate", methods=["POST"])
+def api_reel_generate():
+    from reel_generator import generate_reel, upload_to_cloudinary, register_to_supabase
+    from pathlib import Path
+    data = request.json
+    product        = data["product"]
+    image_urls     = data["image_urls"]
+    catchcopy      = data["catchcopy"]
+    scheduled_time = data.get("scheduled_time")
+    try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir = Path(tmpdir)
+            video_path = generate_reel(product, image_urls, catchcopy, tmpdir)
+            video_url  = upload_to_cloudinary(video_path, product["id"])
+            caption    = f"{product.get('title_en', product['title'])}\n\n#monodoraku #モノ道楽 #vintage #antique"
+            post_id    = register_to_supabase(product, video_url, caption, scheduled_time)
+        return jsonify({"success": True, "video_url": video_url, "post_id": post_id})
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
+        
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
