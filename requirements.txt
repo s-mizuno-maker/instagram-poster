@@ -7,3 +7,6 @@ Pillow
 gunicorn
 supabase
 python-dotenv
+cloudinary
+moviepy
+numpy
