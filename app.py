@@ -437,6 +437,39 @@ def api_reel_generate():
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
         
+@app.route("/api/reel/generate_only", methods=["POST"])
+def api_reel_generate_only():
+    from reel_generator import generate_reel, upload_to_cloudinary
+    from pathlib import Path
+    data = request.json
+    product    = data["product"]
+    image_urls = data["image_urls"]
+    catchcopy  = data["catchcopy"]
+    try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir = Path(tmpdir)
+            video_path = generate_reel(product, image_urls, catchcopy, tmpdir)
+            video_url  = upload_to_cloudinary(video_path, product["id"])
+        return jsonify({"success": True, "video_url": video_url})
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/reel/reserve", methods=["POST"])
+def api_reel_reserve():
+    from reel_generator import register_to_supabase
+    data           = request.json
+    product        = data["product"]
+    video_url      = data["video_url"]
+    caption        = data.get("caption", "")
+    scheduled_time = data.get("scheduled_time")
+    try:
+        post_id = register_to_supabase(product, video_url, caption, scheduled_time)
+        return jsonify({"success": True, "post_id": post_id})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+        
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
